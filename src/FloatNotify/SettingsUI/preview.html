@@ -1,0 +1,523 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<style>
+html:has(#glass-answer-type-trial){scrollbar-gutter:stable}
+#glass-answer-type-trial{--notice-width:480px;--ink:#1b282e;--tint:#5b6c78;--wash:#eaf6fc54;--glass:linear-gradient(154deg,#ffffff32 0%,#ffffff12 54%,#edf5ff29 100%);--action-height:32px;--action-radius:14px;--action-font:500 13px/18px "Segoe UI","Microsoft YaHei UI",sans-serif}
+#glass-answer-type-trial .lens-stage{container-type:inline-size;height:332px;margin-top:12px;overflow:hidden;border-radius:17px;position:relative;isolation:isolate;background:#777aa7}
+#glass-answer-type-trial .lens-wall{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#glass-answer-type-trial .lens-card{box-sizing:border-box;width:min(var(--notice-width),calc(100% - 32px));position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);margin:0;padding:22px 25px 16px;color:#182530;background:#e2eaf0;border-radius:30px;overflow:hidden;isolation:isolate;box-shadow:0 17px 32px -12px #0b183c65,0 4px 10px -3px #15294136;cursor:grab;touch-action:none;user-select:none;font-family:"Segoe UI","Microsoft YaHei UI",sans-serif}
+#glass-answer-type-trial[data-ready] .lens-card{background:transparent}
+#glass-answer-type-trial .lens-card:active{cursor:grabbing}
+#glass-answer-type-trial .lens-optics{position:absolute;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none}
+#glass-answer-type-trial .lens-type{display:flex;align-items:center;gap:7px;font-size:12px;letter-spacing:.06em;font-weight:600;color:#233649}
+#glass-answer-type-trial .lens-card svg{width:16px;height:16px;stroke-width:1.7}
+#glass-answer-type-trial .lens-card h3{color:inherit;font:600 clamp(18px,2.9vw,21px)/1.38 "Segoe UI","Microsoft YaHei UI",sans-serif;letter-spacing:-.02em;margin:13px 0 6px}
+#glass-answer-type-trial .lens-card .lens-request{margin:11px 0 3px}
+#glass-answer-type-trial .lens-purpose{margin:0;color:#2b3b4c;font:14px/1.5 "Segoe UI","Microsoft YaHei UI",sans-serif}
+#glass-answer-type-trial .lens-terminal{margin:9px 0 8px;padding:8px 10px;border-radius:12px;background:linear-gradient(140deg,#f8fcffae,#f3f8ff84);border:1px solid #f5fbff91;box-shadow:inset 0 1px 0 #ffffff77}
+#glass-answer-type-trial .lens-shell{display:flex;align-items:center;gap:5px;color:#34475a;font:600 12px/1.4 "Segoe UI",sans-serif}
+#glass-answer-type-trial .lens-shell svg{width:14px;height:14px}
+#glass-answer-type-trial .lens-fold{position:relative;display:inline-flex;align-items:center;gap:5px;margin-left:auto;padding:0 2px;appearance:none;border:0;background:transparent;color:var(--ink);font:500 12px/1.4 "Segoe UI","Microsoft YaHei UI",sans-serif;cursor:default}
+#glass-answer-type-trial .lens-fold[hidden]{display:none}
+#glass-answer-type-trial .lens-fold::after{content:"";width:5px;height:5px;border:solid currentColor;border-width:0 1px 1px 0;transform:translateY(-1px) rotate(45deg)}
+#glass-answer-type-trial .lens-fold[aria-expanded="true"]::after{transform:translateY(1px) rotate(225deg)}
+#glass-answer-type-trial .lens-command{display:block;margin:4px 0 0;padding:0;background:transparent;border:0;color:#14263b;font:13px/1.55 Consolas,"Cascadia Mono","Microsoft YaHei UI",monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-block-size:2lh;overflow:clip;cursor:text;user-select:text;touch-action:auto}
+#glass-answer-type-trial .lens-terminal:has(.lens-fold[aria-expanded="true"]) .lens-command{max-block-size:14lh;overflow-y:auto;scrollbar-width:thin}
+#glass-answer-type-trial .lens-location{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:baseline;gap:8px;color:#344556;font:12px/1.5 "Segoe UI","Microsoft YaHei UI",sans-serif}
+#glass-answer-type-trial .lens-location code{margin:0;padding:0;background:transparent;border:none;color:inherit;font:12px/1.5 Consolas,"Microsoft YaHei UI",monospace;white-space:normal;overflow-wrap:anywhere;cursor:text;user-select:text}
+#glass-answer-type-trial .lens-footer,#glass-answer-type-trial .lens-tools,#glass-answer-type-trial .lens-decisions{display:flex;align-items:center;gap:6px;flex-wrap:nowrap}
+#glass-answer-type-trial .lens-footer{margin-top:16px}
+#glass-answer-type-trial .lens-tools,#glass-answer-type-trial .lens-decisions{flex:none}
+#glass-answer-type-trial .open-short,#glass-answer-type-trial .lens-footer[data-short] .open-label{display:none}
+#glass-answer-type-trial .lens-footer[data-short] .open-short{display:inline}
+#glass-answer-type-trial .lens-decisions{margin-inline-start:auto}
+#glass-answer-type-trial .glass-action{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:5px;appearance:none;height:var(--action-height);min-height:var(--action-height);margin:0;padding:0 8px;border:0;border-radius:var(--action-radius);white-space:nowrap;font:var(--action-font);color:var(--ink);background:var(--glass);box-shadow:inset 0 .75px .7px #ffffff7a,inset 0 -.6px 1px #50637420,0 0 0 .6px #54667a24;cursor:default}
+#glass-answer-type-trial :is(.major-action,.split-action){box-shadow:inset 0 .8px 1px #ffffffa3,inset 0 -.75px 1px #536b7b38,0 0 0 .75px #5368793d}
+#glass-answer-type-trial .open-arrow{position:relative;display:inline-grid;place-items:center;flex:0 0 15px;width:15px;height:15px;color:inherit;pointer-events:none}
+#glass-answer-type-trial .open-arrow::before,#glass-answer-type-trial .open-arrow::after{position:absolute;box-sizing:border-box}
+#glass-answer-type-trial .open-arrow::before{inset:0;display:grid;place-content:center;font:400 16px/1 "Segoe UI Symbol","Arial",sans-serif}
+#glass-answer-type-trial .open-arrow::before{content:"↗︎";font-size:14px;transform:translate(2.3px,-2.1px)}
+#glass-answer-type-trial .open-arrow::after{content:"";inset:3.8px 2.7px 1.6px 1.5px;border:1.25px solid currentColor;border-radius:2.2px;clip-path:polygon(0 0,45% 0,45% 20%,82% 20%,82% 53%,100% 53%,100% 100%,0 100%)}
+#glass-answer-type-trial :is(.ignore-action,.deny-action,.lens-send){min-inline-size:var(--word-button-width,54px)}
+#glass-answer-type-trial .approval-choice{position:relative}
+#glass-answer-type-trial .split-action{padding:0;gap:0}
+#glass-answer-type-trial .split-action button{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;height:var(--action-height);appearance:none;padding:0 9px;border:0;background:transparent;color:inherit;font:var(--action-font);cursor:default}
+#glass-answer-type-trial .allow-action{border-radius:var(--action-radius)}
+#glass-answer-type-trial .split-action:has(.choice-trigger:not([hidden])) .allow-action{border-radius:var(--action-radius) 0 0 var(--action-radius);padding-right:5px}
+#glass-answer-type-trial .split-action .choice-trigger{position:relative;align-self:stretch;display:grid;place-items:center;width:25px;padding:0;border-radius:0 var(--action-radius) var(--action-radius) 0}
+#glass-answer-type-trial .choice-trigger::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:1px;background:#53657038}
+#glass-answer-type-trial .choice-trigger span{width:6px;height:6px;border:solid currentColor;border-width:0 1.4px 1.4px 0;transform:translateY(-1px) rotate(45deg)}
+#glass-answer-type-trial .choice-trigger[aria-expanded="true"] span{transform:translateY(1px) rotate(225deg)}
+#glass-answer-type-trial .choice-menu{position:absolute;right:0;bottom:calc(100% + 7px);z-index:2;min-width:max-content;padding:4px;background:linear-gradient(150deg,#ffffffef,#f0f5f8ef);backdrop-filter:blur(8px);border:1px solid #ffffffcb;border-radius:13px;box-shadow:0 4px 15px #13263930,0 0 0 1px #41576736}
+#glass-answer-type-trial .choice-menu button{box-sizing:border-box;display:flex;align-items:center;height:var(--action-height);width:100%;text-align:left;appearance:none;font:var(--action-font);color:var(--ink);background:transparent;border:0;border-radius:10px;padding:0 11px;cursor:default}
+#glass-answer-type-trial .choice-menu button:is(:hover,:focus-visible){background:#dce6ed}
+#glass-answer-type-trial .preview-result{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:grid;justify-items:center;gap:10px;padding:12px 16px;max-width:90%;border-radius:16px;background:#eff5f9ec;color:var(--ink);text-align:center;font:var(--action-font)}
+#glass-answer-type-trial[data-resting] .lens-card{visibility:hidden}
+#glass-answer-type-trial .preview-result[hidden],#glass-answer-type-trial .choice-menu[hidden],#glass-answer-type-trial .split-action .choice-trigger[hidden],#glass-answer-type-trial .glass-action[hidden]{display:none}
+@media(max-width:420px){#glass-answer-type-trial .lens-stage{height:310px}#glass-answer-type-trial .lens-card{padding:18px 16px 14px;border-radius:24px}#glass-answer-type-trial .lens-footer .glass-action:not(.split-action){padding-inline:6px}#glass-answer-type-trial .lens-footer,#glass-answer-type-trial .lens-tools,#glass-answer-type-trial .lens-decisions{gap:4px}}
+#glass-answer-type-trial [data-show]{display:none}
+#glass-answer-type-trial[data-kind="approval"] [data-show="approval"],#glass-answer-type-trial[data-kind="question"] [data-show="question"]{display:block}
+#glass-answer-type-trial .lens-answers{display:grid;grid-template-columns:minmax(0,1fr);row-gap:7px;margin:10px 0 0;padding:0;border:0;min-width:0;color:#2c4051;font-size:15px}
+#glass-answer-type-trial .lens-answers label,#glass-answer-type-trial .lens-editor{box-sizing:border-box;width:100%;padding:8px 12px;border:1px solid #f4fbff6b;border-radius:12px;background:linear-gradient(154deg,#ffffff30 0%,#ffffff12 55%,#edf5ff29 100%);box-shadow:inset 0 .6px 0 #ffffff61,0 1px 2px #2839561c}
+#glass-answer-type-trial .lens-answers label{display:flex;align-items:flex-start;gap:9px;min-width:0;line-height:1.45;overflow-wrap:anywhere;cursor:default}
+#glass-answer-type-trial .lens-answers label:has(:checked){border-color:color-mix(in srgb,var(--tint) 65%,transparent);background:linear-gradient(145deg,var(--wash),#ffffff26 65%,var(--wash))}
+@media(pointer:coarse){#glass-answer-type-trial .lens-answers label{min-height:44px}}
+#glass-answer-type-trial .lens-answers input{flex:none;align-self:flex-start;width:15px;height:15px;margin:4px 0 0;accent-color:var(--tint)}
+#glass-answer-type-trial .lens-editor{appearance:none;display:block;resize:none;field-sizing:content;min-block-size:calc(2lh + 18px);max-block-size:calc(6lh + 18px);overflow-y:auto;overflow-wrap:anywhere;scrollbar-width:thin;margin-top:7px;caret-color:#253f61;font:400 15px/1.45 "Segoe UI","Microsoft YaHei UI",sans-serif;color:#172736;user-select:text;cursor:text;touch-action:auto}
+#glass-answer-type-trial .lens-editor:focus,#glass-answer-type-trial .lens-answers label:has(input:focus-visible){outline:none;border-color:var(--tint);box-shadow:inset 0 1px 0 #ffffffaa,0 0 0 1.5px color-mix(in srgb,var(--tint) 30%,#fffc),0 0 7px 1px var(--wash)}
+#glass-answer-type-trial .lens-answers input:focus-visible{outline:none}
+@media(forced-colors:active){#glass-answer-type-trial .lens-editor:focus,#glass-answer-type-trial .lens-answers label:has(input:focus-visible){outline:2px solid Highlight;outline-offset:2px}}
+#glass-answer-type-trial .lens-editor::placeholder{color:#435364;opacity:1}
+#glass-answer-type-trial .lens-send:disabled{opacity:.65}
+#glass-answer-type-trial .lens-receipt:empty,#glass-answer-type-trial .lens-origin[hidden]{display:none}
+#glass-answer-type-trial .lens-receipt:not(:empty){margin-right:auto;color:#243c38}
+#glass-answer-type-trial[data-kind="question"] .lens-type{color:#50496e}
+#glass-answer-type-trial[data-kind="approval"] .lens-type{color:#4d4135}
+#glass-answer-type-trial[data-kind="done"] .lens-card{width:min(var(--notice-width),590px,calc(100% - 32px));border-radius:29px;padding:10px 15px;min-height:60px;display:grid;align-content:center}
+#glass-answer-type-trial[data-kind="done"] .lens-hud{display:grid;grid-template-columns:24px minmax(0,1fr) auto 32px;align-items:center;column-gap:8px}
+#glass-answer-type-trial .lens-done-copy{min-width:0;display:grid;gap:2px}
+#glass-answer-type-trial .lens-done-status{color:#324553;font-size:12px;line-height:16px;font-weight:500}
+#glass-answer-type-trial .lens-hud h3{margin:0;line-height:1.35;font-size:16px;font-weight:600;overflow-wrap:anywhere;text-wrap:pretty;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+#glass-answer-type-trial .lens-check{display:grid;place-items:center;flex:none;border-radius:50%;width:24px;height:24px;background:#d1e4debf;color:#265c4c;box-shadow:inset 0 .8px 1px #fff9;font-size:15px;font-weight:bold}
+#glass-answer-type-trial .lens-x{width:var(--action-height);height:var(--action-height);padding:0;border-radius:50%;display:grid;place-items:center}
+#glass-answer-type-trial .lens-x .lens-x-fallback{font:14px/1 "Segoe UI Symbol",sans-serif}
+#glass-answer-type-trial .lens-x i[data-lucide]{display:none}
+#glass-answer-type-trial .lens-x svg{display:block;width:14px;height:14px;stroke-width:1.8}
+#glass-answer-type-trial .lens-x svg+.lens-x-fallback{display:none}
+#glass-answer-type-trial .lens-check-mark{line-height:1}
+
+#glass-answer-type-trial[data-material="crystal"] .lens-card{box-shadow:0 12px 28px -13px #1b2a524d,0 2px 6px -2px #15294147}
+#glass-answer-type-trial[data-material="crystal"] .lens-card{color:#101c29}
+#glass-answer-type-trial[data-material="crystal"] .lens-card .lens-type{color:#282539}
+#glass-answer-type-trial[data-material="crystal"] .lens-answers{color:#192736}
+#glass-answer-type-trial .lens-check-mark{transform:translateY(-0.5px)}
+@container(max-width:350px){
+ #glass-answer-type-trial .lens-footer{--word-button-width:46px;margin-inline:-5px}
+}
+@container(max-width:488px){
+ #glass-answer-type-trial[data-kind="done"] .lens-hud{grid-template-columns:24px minmax(0,1fr) 32px;row-gap:5px}
+ #glass-answer-type-trial .lens-hud .lens-done-copy{grid-column:2 / 4}
+ #glass-answer-type-trial .lens-jump{grid-column:1 / 3;grid-row:2;justify-self:start;max-width:100%}
+ #glass-answer-type-trial .lens-jump .open-label{white-space:normal;overflow-wrap:anywhere}
+ #glass-answer-type-trial .lens-x{grid-column:3;grid-row:2}
+}
+#glass-answer-type-trial .lens-answers{font-size:14px;row-gap:6px;margin-top:9px}
+#glass-answer-type-trial :is(.lens-answers label,.lens-editor){padding:7px 11px}
+#glass-answer-type-trial .lens-answers label{gap:8px}
+#glass-answer-type-trial .lens-answers input{width:14px;height:14px;margin-top:3px}
+#glass-answer-type-trial .lens-editor{font-size:14px;min-block-size:calc(2lh + 16px);max-block-size:calc(6lh + 16px);margin-top:6px}
+#glass-answer-type-trial [data-show="question"] .lens-footer{margin-top:14px}
+</style>
+<style>html,body{width:100%;height:100%;margin:0;overflow:hidden;font:14px "Segoe UI","Microsoft YaHei UI",sans-serif}html:has(#glass-answer-type-trial){scrollbar-gutter:auto}#glass-answer-type-trial{height:100%}#glass-answer-type-trial .lens-stage{height:100%;margin:0;border-radius:0}#glass-answer-type-trial .lens-card{font-family:"Segoe UI","Microsoft YaHei UI",sans-serif}#glass-answer-type-trial.system .lens-optics{display:none}#glass-answer-type-trial.system .lens-card{background:linear-gradient(135deg,#eef6ff80,#f1ecf870);backdrop-filter:blur(15px);box-shadow:inset 0 0 0 1px #ffffffad,0 10px 25px #26344b30}button,input,textarea{font:inherit}.lens-card [hidden]{display:none!important}@media(forced-colors:none){#glass-answer-type-trial .lens-answers label:has(:checked){border-color:#6892cf;background:linear-gradient(125deg,#f6faffdb,#daebffab);box-shadow:inset 0 1px 0 #ffffffe0,0 0 0 1px #2e5fa51a;color:#12385e}#glass-answer-type-trial .lens-answers input{accent-color:#205fb5}#glass-answer-type-trial .lens-editor:focus,#glass-answer-type-trial .lens-answers label:has(input:focus-visible){border-color:#4780c1;box-shadow:inset 0 1px 0 #fff8,0 0 0 2px #b5d2f1}}</style>
+</head><body><div id="glass-answer-type-trial" class="glass-answer-type-trial">
+  <div class="lens-stage viz-dotted-background" aria-label="可拖动的浅色玻璃提醒，使用示例桌面">
+    <canvas class="lens-wall" aria-hidden="true"></canvas>
+    <article class="lens-card" aria-label="浅色提醒外观样例">
+      <canvas class="lens-optics" aria-hidden="true"></canvas>
+      <div class="lens-content" data-show="approval">
+        <div class="lens-type"><i data-lucide="shield-check" aria-hidden="true"></i><span>ChatGPT丨请求审批</span></div>
+        <h3 class="lens-request">允许校验已安装的提醒程序吗？</h3>
+        <p class="lens-purpose">读取 DLL 并计算 SHA256，用于比对安装版本。</p>
+        <div class="lens-terminal">
+          <div class="lens-shell"><i data-lucide="terminal" aria-hidden="true"></i>PowerShell<button type="button" class="lens-fold" aria-controls="glass-request-code" aria-expanded="false" hidden>展开代码</button></div>
+          <pre id="glass-request-code" class="lens-command" aria-label="申请运行的命令">Get-FileHash -LiteralPath '.\FloatNotify.dll' -Algorithm SHA256</pre>
+        </div>
+        <div class="lens-location"><span>工作目录</span><code>示例安装目录</code></div>
+        <div class="lens-footer">
+          <div class="lens-tools"><button type="button" class="glass-action ignore-action">忽略</button><button type="button" class="glass-action lens-open" aria-label="打开 ChatGPT 查看"><span class="open-label">打开 ChatGPT 查看</span><span class="open-short" aria-hidden="true">查看</span><span class="open-arrow" aria-hidden="true"></span></button></div>
+          <div class="lens-decisions">
+            <button type="button" class="glass-action deny-action">拒绝</button>
+            <div class="approval-choice">
+              <div class="glass-action split-action"><button type="button" class="allow-action">允许一次</button><button type="button" class="choice-trigger" aria-label="审批选项" aria-haspopup="menu" aria-expanded="false" aria-controls="approval-choice-menu"><span aria-hidden="true"></span></button></div>
+              <div class="choice-menu" id="approval-choice-menu" role="menu" aria-label="审批选项" hidden>
+                <button type="button" role="menuitem" tabindex="-1">允许一次</button>
+                <button type="button" role="menuitem" tabindex="-1">允许类似命令</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="lens-content" data-show="question">
+        <div class="lens-type"><i data-lucide="message-circle" aria-hidden="true"></i><span>ChatGPT丨需要你的回答</span></div>
+        <h3>报告按什么顺序展示？</h3>
+        <fieldset class="lens-answers" aria-label="报告展示顺序">
+          <label><input type="radio" name="report-order" value="按优先级" checked><span>按优先级</span></label>
+          <label><input type="radio" name="report-order" value="按文件顺序"><span>按文件顺序</span></label>
+        </fieldset>
+        <textarea class="lens-editor" rows="2" wrap="soft" aria-label="或输入自己的回复" placeholder="或输入自己的回复" autocomplete="off"></textarea>
+        <div class="lens-footer">
+          <div class="lens-tools"><button type="button" class="glass-action ignore-action">忽略</button><button type="button" class="glass-action lens-open lens-origin" aria-label="打开 ChatGPT 查看"><span class="open-label">打开 ChatGPT 查看</span><span class="open-short" aria-hidden="true">查看</span><span class="open-arrow" aria-hidden="true"></span></button><span class="lens-receipt" role="status"></span></div>
+          <div class="lens-decisions"><button type="button" class="glass-action lens-send major-action">发送</button></div>
+        </div>
+      </div>
+      <div class="lens-content lens-hud" data-show="done">
+        <span class="lens-check" aria-hidden="true"><span class="lens-check-mark">✓</span></span><div class="lens-done-copy"><span class="lens-done-status">ChatGPT丨回复已完成</span><h3>核对项目文件</h3></div><button type="button" class="glass-action lens-open lens-jump" aria-label="打开 ChatGPT 查看"><span class="open-label">打开 ChatGPT 查看</span><span class="open-arrow" aria-hidden="true"></span></button><button type="button" class="glass-action lens-x" aria-label="关闭提醒"><i data-lucide="x" aria-hidden="true"></i><span class="lens-x-fallback" aria-hidden="true">✕</span></button>
+      </div>
+    </article>
+    <div class="preview-result" hidden><span role="status"></span><button class="glass-action replay" type="button">重新预览</button></div>
+  </div>
+</div>
+<script>
+(()=>{
+const root=document.getElementById("glass-answer-type-trial");
+const stage=root.querySelector(".lens-stage"), card=root.querySelector(".lens-card");
+const wall=root.querySelector(".lens-wall"), lens=root.querySelector(".lens-optics");
+let kind,material,scene;
+const code=root.querySelector(".lens-command"), fold=root.querySelector(".lens-fold");
+function setCodeExpanded(expanded){
+ fold.setAttribute("aria-expanded",String(expanded));
+ fold.textContent=expanded?"收起代码":"展开代码";
+ if(!expanded)code.scrollTop=0;
+}
+fold.addEventListener("click",()=>{
+ setCodeExpanded(fold.getAttribute("aria-expanded")!=="true");size(true);
+});
+function measureFold(){
+ const twoLines=2*parseFloat(getComputedStyle(code).lineHeight);
+ fold.hidden=code.scrollHeight<=twoLines+1;
+ if(fold.hidden&&fold.getAttribute("aria-expanded")==="true")setCodeExpanded(false);
+}
+const choice=card.querySelector(".approval-choice"),menu=choice.querySelector(".choice-menu");
+const trigger=choice.querySelector(".choice-trigger"),allow=choice.querySelector(".allow-action");
+const result=stage.querySelector(".preview-result"),replay=result.querySelector(".replay");
+function closeMenu(restoreFocus=false){
+ menu.hidden=true;trigger.setAttribute("aria-expanded","false");
+ if(restoreFocus)trigger.focus();
+}
+function openMenu(last=false){
+ if(trigger.hidden)return;
+ menu.hidden=false;trigger.setAttribute("aria-expanded","true");
+ (last?menu.lastElementChild:menu.firstElementChild)?.focus({preventScroll:true});
+}
+function finishPreview(message){
+ closeMenu();root.dataset.resting="";result.hidden=false;
+ result.querySelector("[role=status]").textContent=message;
+ card.inert=true;replay.focus({preventScroll:true});
+}
+function resetPreview(){
+ closeMenu();card.inert=false;result.hidden=true;delete root.dataset.resting;
+}
+replay.addEventListener("click",()=>{resetPreview();size(true);});
+trigger.addEventListener("click",()=>{if(menu.hidden)openMenu();else closeMenu(true);});
+trigger.addEventListener("keydown",e=>{
+ if(e.key==="ArrowDown"||e.key==="ArrowUp"){e.preventDefault();openMenu(e.key==="ArrowUp");}
+});
+menu.addEventListener("keydown",e=>{
+ const items=Array.from(menu.children),index=items.indexOf(document.activeElement);
+ const next={ArrowDown:(index+1)%items.length,ArrowUp:(index-1+items.length)%items.length,Home:0,End:items.length-1};
+ if(e.key==="Escape"){e.preventDefault();closeMenu(true);}
+ else if(Object.hasOwn(next,e.key)){e.preventDefault();items[next[e.key]].focus();}
+});
+document.addEventListener("pointerdown",e=>{if(!menu.hidden&&!choice.contains(e.target))closeMenu();});
+choice.addEventListener("focusout",e=>{if(!choice.contains(e.relatedTarget))closeMenu();});
+allow.addEventListener("click",()=>finishPreview("预览已选择「"+allow.textContent+"」"));
+menu.addEventListener("click",e=>{
+ const item=e.target.closest("[role=menuitem]");
+ if(item)finishPreview("预览已选择「"+item.textContent+"」");
+});
+card.addEventListener("click",e=>{
+ const btn=e.target.closest("button");
+ if(!btn)return;
+ if(btn.matches(".ignore-action"))finishPreview("提醒已收起，原请求仍待处理");
+ if(btn.matches(".deny-action"))finishPreview("预览已选择「"+btn.textContent+"」");
+ if(btn.matches(".lens-open"))finishPreview("此入口指向 ChatGPT 的原对话");
+ if(btn.matches(".lens-x"))finishPreview("完成提醒已关闭");
+});
+const title=card.querySelector(".lens-hud h3");
+const answers=root.querySelector(".lens-answers"), answerInput=root.querySelector(".lens-editor");
+const send=root.querySelector(".lens-send"), receipt=root.querySelector(".lens-receipt"), originLink=root.querySelector(".lens-origin");
+function syncAnswer(){
+ const restoreOrigin=originLink.hidden;
+ receipt.textContent="";originLink.hidden=false;
+ if(restoreOrigin)size(true);
+ send.disabled=!(answerInput.value.trim()||answers.querySelector(":checked"));
+}
+function useWrittenAnswer(){
+ const selected=answers.querySelector(":checked");
+ if(selected)selected.checked=false;
+ syncAnswer();
+}
+answerInput.addEventListener("click",()=>{if(answers.querySelector(":checked"))useWrittenAnswer();});
+answerInput.addEventListener("input",useWrittenAnswer);
+answers.addEventListener("change",()=>{answerInput.value="";syncAnswer();});
+send.addEventListener("click",()=>{
+ originLink.hidden=true;receipt.textContent="预览已提交";send.disabled=true;
+ size(true);
+});
+const wc=wall.getContext("2d",{willReadFrequently:true}), lc=lens.getContext("2d");
+const clip=(n,a,b)=>Math.min(b,Math.max(a,n));
+let sw,sh,cw,ch,scale,frame=0,raw,medium,soft,output,map,px=0,py=0,drag=null,lightX=-.68,lightY=-.73;
+function silk(c,w,h){
+ const base=c.createLinearGradient(0,0,w,h);
+ [[0,"#252a64"],[.27,"#5654a2"],[.52,"#cdc1e3"],[.72,"#f8b8ab"],[1,"#967ca4"]].forEach(([a,b])=>base.addColorStop(a,b));
+ c.fillStyle=base;c.fillRect(0,0,w,h);
+ // Draw folds in a sloping coordinate system so a single stripe crosses multiple glass edges.
+ c.save();c.scale(w/760,h/332);c.transform(1,-.44,0,1,0,120);
+ const folds=[
+  [-42,118,["#253269","#4864ae","#91b9dd","#c7d8ed","#695d9f"]],
+  [62,116,["#303d81","#6583cf","#c1def5","#878dd3","#504c97"]],
+  [148,88,["#555b9a","#a3a2d0","#f5d8dc","#eeb7bc","#8e70a2"]],
+  [210,106,["#4c457f","#ab82a5","#ffc4a7","#ffdaab","#a98ba8"]],
+  [290,180,["#65577c","#af849b","#e8b49a","#ecccb1","#957d93"]]
+ ];
+ for(const [top,height,colors] of folds){
+   const grad=c.createLinearGradient(0,top,0,top+height);
+   colors.forEach((color,i)=>grad.addColorStop([0,.17,.47,.64,1][i],color));
+   c.beginPath();c.moveTo(-85,top+25);
+   c.bezierCurveTo(118,top-22,220,top+26,382,top+2);
+   c.bezierCurveTo(545,top-29,675,top+30,845,top);
+   c.lineTo(845,top+height+60);c.lineTo(-85,top+height+60);c.closePath();c.fillStyle=grad;c.fill();
+   c.beginPath();c.moveTo(-85,top+25);c.bezierCurveTo(118,top-22,220,top+26,382,top+2);
+   c.bezierCurveTo(545,top-29,675,top+30,845,top);c.strokeStyle="#fff5";c.lineWidth=1.25;c.stroke();
+ }
+ c.restore();
+}
+function paper(c,w,h){
+ c.fillStyle="#e4e7ea";c.fillRect(0,0,w,h);
+ const x=w*.065, width=w*.87, left=x+Math.min(34,w*.05);
+ c.fillStyle="#f9fafb";c.fillRect(x,-10,width,h+20);c.fillStyle="#223240";
+ c.font="600 22px 'Microsoft YaHei UI', sans-serif";c.fillText("项目周报",left,41);
+ c.fillStyle="#62707c";c.font="12px Consolas, monospace";c.fillText("DESKTOP   /   NOV 24",left,64);
+ c.fillStyle="#b6c4d0";c.fillRect(left,78,width-(left-x)*2,1);
+ c.save();c.beginPath();c.rect(left,80,width-(left-x)*2,h);c.clip();
+ const lines=["交互验证     桌面提醒与键盘焦点","文件读取与权限申请已完成核对。","任务完成后，回到原对话即可收起提醒。","问答记录     选择题及手写答复","提交后收到回执，保留完整的测试记录。","下一轮计划     检查视觉层级和文字可读性。"];
+ c.font="14px 'Microsoft YaHei UI', sans-serif";
+ for(let i=0;i<10;i++){c.fillStyle=i%3===0?"#46586b":"#647381";c.fillText(lines[i%lines.length],left,108+i*28);}
+ c.restore();
+}
+function editor(c,w,h){
+ c.fillStyle="#202735";c.fillRect(0,0,w,h);c.fillStyle="#2e3747";c.fillRect(0,0,w,34);
+ c.font="12px Consolas, monospace";c.fillStyle="#d2dae6";c.fillText("report.md",20,22);
+ const rows=["# Desktop review","  project:  floatnotify","  status:   ready","## Verification","  focus:    retained","  events:   3","  replay:   enabled"];
+ c.font="14px Consolas, monospace";
+ for(let i=0;i<13;i++){c.fillStyle="#748499";c.fillText(String(i+1).padStart(2,"0"),15,60+i*23);c.fillStyle=["#bdd4e5","#c6b8d9","#b6d9cc"][i%3];c.fillText(rows[i%rows.length],51,60+i*23);}
+}
+function backdrop(){
+ const w=wall.width,h=wall.height;
+ wc.save();wc.scale(scale,scale);({paper,editor,silk}[scene])(wc,sw,sh);wc.restore();
+ raw=wc.getImageData(0,0,w,h).data;
+ const temp=document.createElement("canvas");temp.width=w;temp.height=h;
+ const tc=temp.getContext("2d",{willReadFrequently:true});
+ function blurred(sigma){
+   tc.clearRect(0,0,w,h);tc.filter="blur("+sigma*scale+"px)";tc.drawImage(wall,0,0);
+   return tc.getImageData(0,0,w,h).data;
+ }
+ medium=blurred(2.2);soft=blurred(6);
+}
+// Feathered type protection follows the printed words, leaving the clear face visible around them.
+function textZones(){
+ const origin=card.getBoundingClientRect(),active=card.querySelector('[data-show="'+kind+'"]');
+ const boxes=[];
+ for(const el of active.querySelectorAll(".lens-type,h3,.lens-done-status,.lens-purpose,.lens-location span,.lens-location code,.lens-answers span,.lens-footer .open-label,.lens-footer .open-short,.lens-footer .ignore-action,.deny-action,.allow-action,.lens-send,.lens-jump,.lens-x")){
+   const range=document.createRange();range.selectNodeContents(el);
+   for(const rect of (el===title&&title.hasAttribute("data-tooltip"))?[el.getBoundingClientRect()]:range.getClientRects()){
+     if(rect.width<=0||rect.height<=0)continue;
+     boxes.push({left:rect.left-origin.left-3,right:rect.right-origin.left+3,top:rect.top-origin.top-3,bottom:rect.bottom-origin.top+3});
+   }
+ }
+ if(kind==="question"){
+   const field=answerInput.getBoundingClientRect();
+   boxes.push({left:field.left-origin.left+12,right:field.right-origin.left-12,top:field.top-origin.top+10,bottom:field.bottom-origin.top-10});
+ }
+ return boxes;
+}
+// Store only the local bend at the rounded sides of the answer controls.
+// The same bend displaces the backdrop sample and orients its directional glint.
+function controlRims(w,h){
+ const dx=new Float32Array(w*h),dy=new Float32Array(w*h),origin=card.getBoundingClientRect();
+ const panel=card.querySelector('[data-show="'+kind+'"]');
+ for(const el of panel.querySelectorAll(".lens-answers label,.lens-editor,.glass-action")){
+   const box=el.getBoundingClientRect();
+   const isButton=el.classList.contains("glass-action"),band=isButton?4.5:7;
+   const r=Math.min(box.height/2,box.width/2,parseFloat(getComputedStyle(el).borderTopLeftRadius));
+   const left=box.left-origin.left,top=box.top-origin.top,hw=box.width/2,hh=box.height/2;
+   const x0=Math.max(0,Math.floor(left*scale)),x1=Math.min(w,Math.ceil((left+box.width)*scale));
+   const y0=Math.max(0,Math.floor(top*scale)),y1=Math.min(h,Math.ceil((top+box.height)*scale));
+   for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++){
+     const cx=(x+.5)/scale-left-hw,cy=(y+.5)/scale-top-hh;
+     const qx=Math.abs(cx)-hw+r,qy=Math.abs(cy)-hh+r;
+     const ax=Math.max(0,qx),ay=Math.max(0,qy),arc=Math.hypot(ax,ay);
+     const depth=r-arc-Math.min(Math.max(qx,qy),0);
+     if(depth<=0||depth>=band)continue;
+     const shoulder=1-depth/band;
+     const gain=shoulder*shoulder*Math.min(1,depth*1.6)*(isButton ? .62 : 1);
+     const i=y*w+x;
+     dx[i]=Math.sign(cx)*(arc?ax/arc:Number(qx>qy))*gain;
+     dy[i]=Math.sign(cy)*(arc?ay/arc:Number(qy>=qx))*gain;
+   }
+ }
+ return {dx,dy};
+}
+function bezel(){
+ const w=lens.width,h=lens.height,n=w*h,r=parseFloat(getComputedStyle(card).borderTopLeftRadius);
+ const crystal=material!=="soft",roll=Math.min(crystal?26:24,ch*.27);
+ const softAxis=v=>Math.log1p(Math.exp(clip(v/4,-60,60)))*4;
+ const boxes=crystal?textZones():[];
+ const clearerEdge=material==="rim",rimWidth=kind==="done"?8:12;
+ map={x:new Float32Array(n),y:new Float32Array(n),edge:new Float32Array(n),tint:new Float32Array(n),gloss:new Float32Array(n),lip:new Float32Array(n),type:new Float32Array(n),rim:new Float32Array(n)};
+ map.fields=controlRims(w,h);
+ output=lc.createImageData(w,h);
+ for(let y=0,i=0;y<h;y++)for(let x=0;x<w;x++,i++){
+   const xx=(x+.5)/scale-cw/2,yy=(y+.5)/scale-ch/2;
+   const qx=Math.abs(xx)-cw/2+r,qy=Math.abs(yy)-ch/2+r;
+   const depth=Math.max(0,r-Math.hypot(Math.max(qx,0),Math.max(qy,0))-Math.min(Math.max(qx,qy),0));
+   const vx=softAxis(qx),vy=softAxis(qy),norm=Math.hypot(vx,vy)||1;
+   map.x[i]=Math.sign(xx)*vx/norm;map.y[i]=Math.sign(yy)*vy/norm;
+   const slope=Math.exp(-depth/roll);
+   // The change fades to exactly zero before reaching the v1 face.
+   const u=clearerEdge?clip(1-depth/rimWidth,0,1):0;
+   const rim=u*u*(3-2*u);
+   map.rim[i]=rim;
+   map.edge[i]=slope*slope*(.62+.38*slope)*(1+.085*rim);
+   map.tint[i]=1-slope*slope;
+   if(!crystal){
+     map.gloss[i]=.69*Math.exp(-depth/2.2)+.16*slope*slope;map.lip[i]=.22*slope*slope;
+     continue;
+   }
+   // A narrow directional glint sits on the same continuous shoulder as the longer refractive falloff.
+   map.gloss[i]=.83*Math.exp(-((depth-.9)**2)/2.3)+.29*Math.exp(-depth/6);
+   map.lip[i]=Math.exp(-depth/7);
+   const cx=xx+cw/2,cy=yy+ch/2;
+   let nearest=1e6;
+   for(const b of boxes){
+     const dx=Math.max(b.left-cx,0,cx-b.right),dy=Math.max(b.top-cy,0,cy-b.bottom);
+     nearest=Math.min(nearest,dx*dx+dy*dy);
+     if(nearest===0)break;
+   }
+   map.type[i]=Math.exp(-nearest/(2*12*12));
+ }
+}
+function fitFooter(){
+ const footer=card.querySelector('[data-show="'+kind+'"] .lens-footer');
+ if(!footer)return;
+ const opener=footer.querySelector(".lens-open");
+ footer.removeAttribute("data-short");
+ if(footer.scrollWidth>footer.clientWidth+1){
+   footer.setAttribute("data-short","");
+   opener.dataset.tooltip=opener.getAttribute("aria-label");
+ }else delete opener.dataset.tooltip;
+}
+function size(force=false,backgroundChanged=false){
+ if(!kind)return;
+ if(kind==="approval")measureFold();
+ fitFooter();
+ const cardWidth=card.offsetWidth,cardHeight=card.offsetHeight;
+ stage.style.minHeight=kind==="done"?"":(cardHeight+32)+"px";
+ const width=stage.clientWidth,height=stage.clientHeight;
+ const density=Math.min(window.devicePixelRatio||1,1.35);
+ if(!wc||!lc||!width||!height||!cardWidth||!cardHeight)return;
+ if(!force && width===sw && height===sh && cardWidth===cw && cardHeight===ch && density===scale)return;
+ const resizedBackdrop=width!==sw||height!==sh||density!==scale;
+ sw=width;sh=height;cw=cardWidth;ch=cardHeight;scale=density;
+ if(resizedBackdrop){wall.width=Math.round(sw*scale);wall.height=Math.round(sh*scale);}
+ if(resizedBackdrop||backgroundChanged)backdrop();
+ if(kind==="done"&&title.scrollHeight>title.clientHeight+1)title.dataset.tooltip=title.textContent;
+ else title.removeAttribute("data-tooltip");
+ lens.width=Math.round(cw*scale);lens.height=Math.round(ch*scale);
+ bezel();
+ if(frame)cancelAnimationFrame(frame);
+ draw();
+}
+function draw(){
+ frame=0;if(!map)return;
+ const mx=Math.max(0,(sw-cw)/2-8), my=Math.max(0,(sh-ch)/2-8);
+ const left=(sw-cw)/2+px*mx,top=(sh-ch)/2+py*my;
+ card.style.left=left+"px";card.style.top=top+"px";card.style.transform="none";
+ const w=lens.width,h=lens.height,bw=wall.width,bh=wall.height,dst=output.data;
+ const crystal=material!=="soft",doc=scene==="paper",dark=scene==="editor",done=kind==="done";
+ const strength=(crystal?(done?16:27):(done?11:19))*scale;
+ const fields=map.fields,fieldBend=(crystal?10:7)*scale;
+ const tint=dark ? .78:doc ? .60:.53;
+ const ox=Math.round(left*scale),oy=Math.round(top*scale),milkColor=[246,248,250];
+ for(let y=0,i=0;y<h;y++)for(let x=0;x<w;x++,i++){
+   const nx=map.x[i],ny=map.y[i],e=map.edge[i],t=map.tint[i];
+   let fx=clip(ox+x-nx*strength*e,0,bw-1),fy=clip(oy+y-ny*strength*e,0,bh-1);
+   if(crystal){
+     const field=.024*t;
+     fx=clip(fx-(x-w/2)*field,0,bw-1);fy=clip(fy-(y-h/2)*field,0,bh-1);
+   }
+   const fieldX=fields?fields.dx[i]:0,fieldY=fields?fields.dy[i]:0;
+   if(fieldX||fieldY){
+     fx=clip(fx-fieldX*fieldBend,0,bw-1);fy=clip(fy-fieldY*fieldBend,0,bh-1);
+   }
+   const ix=Math.floor(fx),iy=Math.floor(fy),ax=fx-ix,ay=fy-iy;
+   const i00=(iy*bw+ix)*4,i10=(iy*bw+Math.min(ix+1,bw-1))*4;
+   const i01=(Math.min(iy+1,bh-1)*bw+ix)*4,i11=i01+(i10-i00);
+   const w00=(1-ax)*(1-ay),w10=ax*(1-ay),w01=(1-ax)*ay,w11=ax*ay;
+   const protect=map.type[i],rim=map.rim[i];
+   const diffusion=crystal?
+     (.08+(doc||dark ? .09:.025)*t+(doc ? .84 : dark ? .56 : .31)*protect)*(1-.18*rim):
+     .11+.87*t;
+   const midWeight=2*diffusion*(1-diffusion),softWeight=diffusion*diffusion,rawWeight=1-midWeight-softWeight;
+   const incidence=nx*lightX+ny*lightY;
+   const front=Math.max(0,incidence),back=Math.max(0,-incidence);
+   let milk=(dark ? .31:.17)+t*tint;
+   let reflection,shade;
+   const localY=.2126*soft[i00]+.7152*soft[i00+1]+.0722*soft[i00+2];
+   if(crystal){
+     const veil=dark ? .49:doc ? .025:.035;
+     const base=veil+t*(dark ? .035:.025);
+     const lightHere=localY+(248-localY)*base;
+     const lack=185-lightHere;
+     const lift=Math.max(0,(lack+Math.sqrt(lack*lack+36))*.5)/Math.max(35,248-lightHere);
+     const coverage=dark ? .83+.17*protect : protect;
+     milk=(base+(1-base)*coverage*Math.min(.73,lift))*(1-.115*rim*(1-.75*protect));
+     const lip=map.lip[i],shoulder=4*lip*(1-lip);
+     reflection=clip(map.gloss[i]*(.12+1.10*front**5+.68*back**7)+.062*front**3*lip*rim,0,.95);
+     shade=lip*(.023+.11*(1-Math.abs(incidence))**2)+.073*(.18+.82*back)*shoulder*rim;
+   }else{
+     reflection=clip(map.gloss[i]*(.17+.64*front**2+.32*back**4),0,.98);
+     shade=.10*map.lip[i]*(.45+.55*back);
+   }
+   if(fieldX||fieldY){
+     const facing=fieldX*lightX+fieldY*lightY;
+     reflection+=(1-reflection)*(.52*Math.max(0,facing)+.14*Math.max(0,-facing));
+     shade+=.075*Math.max(0,-facing);
+   }
+   for(let k=0;k<3;k++){
+     const sharp=raw[i00+k]*w00+raw[i10+k]*w10+raw[i01+k]*w01+raw[i11+k]*w11;
+     const near=medium[i00+k]*w00+medium[i10+k]*w10+medium[i01+k]*w01+medium[i11+k]*w11;
+     const far=soft[i00+k]*w00+soft[i10+k]*w10+soft[i01+k]*w01+soft[i11+k]*w11;
+     let b=rawWeight*sharp+midWeight*near+softWeight*far;
+     if(crystal)b+=.045*(b-localY);
+     const color=(b+(milkColor[k]-b)*Math.min(.91,milk))*(1-shade);
+     dst[i*4+k]=color+(255-color)*reflection;
+   }
+   dst[i*4+3]=255;
+ }
+ lc.putImageData(output,0,0);root.dataset.ready="";
+}
+function schedule(){if(!frame)frame=requestAnimationFrame(draw);}
+function aim(e){
+ const b=card.getBoundingClientRect(),x=e.clientX-b.left-b.width*.5,y=e.clientY-b.top-b.height*.5;
+ const length=Math.hypot(x,y);if(length>12){lightX=x/length;lightY=y/length;}
+}
+card.addEventListener("pointerdown",e=>{
+ if(e.button!==0||e.target.closest("input,textarea,label,button,.lens-command,.lens-location code"))return;
+ drag={id:e.pointerId,x:e.clientX,y:e.clientY,startX:px,startY:py};
+ card.setPointerCapture(e.pointerId);aim(e);schedule();
+});
+card.addEventListener("pointermove",e=>{
+ aim(e);
+ if(drag&&drag.id===e.pointerId){
+   px=clip(drag.startX+(e.clientX-drag.x)/Math.max(1,(sw-cw)/2-8),-1,1);
+   py=clip(drag.startY+(e.clientY-drag.y)/Math.max(1,(sh-ch)/2-8),-1,1);
+ }
+ schedule();
+});
+card.addEventListener("lostpointercapture",()=>{drag=null;});
+// Apply one complete selection before drawing, including on first entry.
+window.renderPreview=({kind:nextKind,mat:nextMaterial,background:nextScene,renderer})=>{
+ const system=nextMaterial==="rim"&&renderer==="system";
+ const backgroundChanged=scene!==nextScene;
+ if(kind===nextKind&&material===nextMaterial&&!backgroundChanged&&root.classList.contains("system")===system)return;
+ kind=nextKind;material=nextMaterial;scene=nextScene;
+ root.dataset.kind=kind;
+ root.dataset.material=material==="soft"?"soft":"crystal";
+ root.classList.toggle("system",system);
+ resetPreview();size(true,backgroundChanged);
+};
+const ro=new ResizeObserver(()=>size());ro.observe(stage);ro.observe(card);
+if(window.parent===window)window.renderPreview({kind:"question",mat:"rim",background:"silk",renderer:"pixels"});
+})();
+</script>
+</body></html>

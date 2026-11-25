@@ -1,0 +1,251 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text.Json;
+
+namespace FloatNotify;
+
+internal sealed partial class Resident
+{
+    readonly RecentHistory history=new();
+    Preferences prefs=LocalData.Read<Preferences>("settings")??new();
+    SettingsWindow? settings;
+    string? settingsTrial;
+    readonly System.Windows.Forms.Timer trialTimer=new(){Interval=3000};
+    Kind trialKind;
+    bool TrialInProgress=>trialTimer.Enabled || settingsTrial!=null;
+    int publishedRevision=-1;
+    internal sealed record Connection(string Kind,string Label,string Detail)
+    {
+        internal static Connection From(bool? stop,bool? approval,bool stopSeen,bool approvalSeen)
+        {
+            if(stop==null || approval==null)return new("idle","未能核实","无法读取 Hook 配置。可在通用设置中复制诊断信息。");
+            if(stop!=true && approval!=true)return new("idle","待配置","尚未找到指向当前安装位置且已启用的浮笺 Hook。");
+            if(stop!=true || approval!=true)return new("idle","部分配置",stop==true?"已登记完成 Hook，人工审批 Hook 缺失或已停用。":"已登记人工审批 Hook，完成 Hook 缺失或已停用。");
+            if(stopSeen && approvalSeen)return new("on","已接入","当前配置下已收到完成和人工审批 Hook。");
+            if(stopSeen || approvalSeen)return new("idle","部分已验证",stopSeen?"已收到完成 Hook，等待首次人工审批。":"已收到人工审批 Hook，等待首次完成事件。");
+            return new("idle","已配置，待验证","两个 Hook 均指向当前安装位置，等待 Codex 事件确认。");
+        }
+    }
+    (DateTime Hooks,DateTime Config)? connectionFiles;
+    bool? registeredStop,registeredApproval;
+    DateTime nextConnectionCheck;
+    Connection? connection;
+    bool RefreshConnection()
+    {
+        if(DateTime.UtcNow<nextConnectionCheck)return false;
+        nextConnectionCheck=DateTime.UtcNow.AddSeconds(3);
+        var home=MonitorFiles.Home;
+        (DateTime Hooks,DateTime Config) stamps;
+        try{stamps=(File.GetLastWriteTimeUtc(Path.Combine(home,"hooks.json")),File.GetLastWriteTimeUtc(Path.Combine(home,"config.toml")));}
+        catch(Exception ex) when(ex is UnauthorizedAccessException or IOException){
+            connectionFiles=null;
+            var unknown=Connection.From(null,null,false,false);
+            if(connection==unknown)return false;
+            connection=unknown;return true;
+        }
+        if(connectionFiles!=stamps){
+            string exe=Path.Combine(About.InstallDir,"FloatNotify.exe");
+            registeredStop=DiagnosticReport.InspectHook(home,exe,"Stop").Registered;
+            registeredApproval=DiagnosticReport.InspectHook(home,exe,"PermissionRequest").Registered;
+            connectionFiles=stamps;
+        }
+        var since=stamps.Hooks>stamps.Config?stamps.Hooks:stamps.Config;
+        var next=Connection.From(registeredStop,registeredApproval,monitor.LastStopUtc>since,lastOfficialUtc>since);
+        if(next==connection)return false;
+        connection=next;return true;
+    }
+    public void OpenSettings()
+    {
+        if(settings==null||settings.IsDisposed){
+            settings=new SettingsWindow(this);
+            settings.FormClosed+=(_,_)=>{settings=null;EndSettingsTrial();};
+            settings.Show();
+        }else{
+            if(settings.WindowState==FormWindowState.Minimized)settings.WindowState=FormWindowState.Normal;
+            settings.Show();settings.Activate();
+        }
+    }
+    static string TypeOf(Kind kind)=>kind switch{Kind.Permission=>"approval",Kind.Question=>"question",_=>"done"};
+    static string KindName(Kind kind)=>kind switch{Kind.Permission=>"请求审批",Kind.Question=>"需要你的回答",_=>"回复已完成"};
+    static string FocusText(string value)=>value switch{"unchanged"=>"保持不变","changed"=>"已变化",_=>"未记录"};
+    static string SignalName(Kind kind)=>kind switch{
+        Kind.CheckApproval=>"核对原生审批",Kind.Answered or Kind.RequestAnswered=>"收到响应",Kind.TurnEnded=>"回合结束",_=>KindName(kind)
+    };
+    readonly ThreadWorkspaces workspaces=new(MonitorFiles.Home);
+    string RowTitle(HistoryRow row)=>row.Title!=""?row.Title:row.Kind==Kind.Done && row.Chat!=Guid.Empty?ChatTitle(row.Chat):KindName(row.Kind);
+    object ViewRow(HistoryRow row)
+    {
+        var at=row.At.ToLocalTime();
+        var workspace=workspaces.For(row.Chat);
+        return new{id=row.Id,type=TypeOf(row.Kind),client="codex",date=at.ToString("yyyy-MM-dd"),time=at.ToString("HH:mm:ss"),title=RowTitle(row),result=row.Status,pending=row.Pending,
+            canOpen=row.Chat!=Guid.Empty,detail=new string[][]{
+                ["所属对话",row.Chat==Guid.Empty?"旧记录未提供":ChatTitle(row.Chat)],
+                ["项目 / 工作区",workspace.Label,workspace.Path]}};
+    }
+    sealed record AppDetails(string Version, string Windows, string Runtime, string InstallDir, string LogDir);
+    static readonly AppDetails About = new(
+        Application.ProductVersion.Split('+')[0],
+        $"Windows · 内部版本 {Environment.OSVersion.Version.Build} · {RuntimeInformation.OSArchitecture}",
+        RuntimeInformation.FrameworkDescription,
+        Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory), Audit.Folder);
+
+    public async Task<string> AppDiagnosticsAsync()
+    {
+        string hooks=await CodexHookReport.ReadAsync(MonitorFiles.Home,Path.Combine(About.InstallDir,"FloatNotify.exe"));
+        static string Setting(bool value) => value ? "开启" : "关闭";
+        var queued=cards.Where(e=>!e.Visible && e.Notice.Source!="preview").ToArray();
+        var pending=activeRequests;
+        var log=DiagnosticReport.ReadAudit(Audit.Folder);
+        string displayed=string.Join("、",cards.Where(e=>e.Visible).GroupBy(e=>e.Notice.Kind).Select(g=>$"{KindName(g.Key)} × {g.Count()}"));
+        if(displayed.Length==0)displayed="无";
+        var sessions=monitor.Listener(true);
+        var desktop=monitor.Listener(false);
+        return $"""
+            浮笺 FloatNotify {About.Version} · 应用诊断
+            运行环境：{About.Windows} · {About.Runtime}
+            采集时间：{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}
+            登录 Windows 时启动：{Setting(Preferences.StartEnabled())}
+            安装目录：{About.InstallDir}
+
+            【提醒与历史】
+            请求审批：{Setting(prefs.Approval)}
+            等待回答：{Setting(prefs.Question)}
+            回复完成：{Setting(prefs.Done)}
+            当前卡片材质：{DiagnosticReport.MaterialName(material.ToString())}
+            最近提醒：{Setting(prefs.History)} · 已保存 {history.Rows.Count()} 条
+            历史存储：本地 JSON 明文 · 保留 {RecentHistory.Days} 天，最多 {RecentHistory.Limit} 条
+            历史文件：{Path.Combine(About.LogDir,"history.json")}
+
+            【客户端与待处理请求】
+            Codex：已适配 · {(prefs.Codex?"提醒已开启":"提醒已暂停")}
+            待适配：Claude Code、DeepSeek Harness、Antigravity
+            本次运行待审批：{pending.Count(e=>e!.Notice.Kind==Kind.Permission)} 项
+            本次运行待回答：{pending.Count(e=>e!.Notice.Kind==Kind.Question)} 项
+            正在显示：{displayed}
+            折叠在更多提醒中：{queued.Length} 张
+
+            【Codex Hooks】
+            {hooks}
+            最近收到浮笺 PermissionRequest：{(lastOfficialUtc==DateTime.MinValue?"本次启动尚未收到":lastOfficialUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"))}
+            最近收到浮笺 Stop 提示：{monitor.LastHook}
+
+            【事件监听】
+            会话监听：{sessions.Status}
+            会话目录：{sessions.Path}
+            桌面日志监听：{desktop.Status}
+            桌面日志目录：{desktop.Path}
+            最近收到事件：{lastSignal}
+
+            【最近一次真实弹窗】
+            {log.Popup}
+
+            【浮笺日志】
+            最近异常：{log.Issue}
+            日志文件：{Path.Combine(About.LogDir,"events.log")}
+            """.ReplaceLineEndings(Environment.NewLine);
+    }
+    public object SettingsSnapshot()
+    {
+        RefreshConnection();
+        workspaces.Refresh();
+        publishedRevision=history.Revision;
+        return new {
+            about=About,connection,
+            opts=new {prefs.Codex,prefs.Approval,prefs.Question,prefs.Done,prefs.History,start=Preferences.StartEnabled()},
+            visible=prefs.Visible, material=material.ToString(),events=history.Rows.Select(ViewRow).ToArray(),revision=history.Revision,trial=TrialInProgress
+        };
+    }
+    static bool Bool(JsonElement msg)=>msg.GetProperty("value").ValueKind switch{JsonValueKind.True=>true,JsonValueKind.False=>false,_=>throw new ArgumentException("无效的设置值。")};
+    void Save(Preferences next){LocalData.Write("settings",next);prefs=next;}
+    public void SettingsCommand(JsonElement msg)
+    {
+        string key=msg.Str("key");
+        switch(msg.Str("action")){
+            case "init":break;
+            case "visible":{
+                if(key is not ("codex" or "claude" or "deepseek" or "gemini"))throw new ArgumentException("未知客户端。");
+                var visible=new Dictionary<string,bool>(prefs.Visible){[key]=Bool(msg)};Save(prefs with{Visible=visible});break;
+            }
+            case "toggle":{
+                bool value=Bool(msg);
+                if(key=="start"){Preferences.SetStartup(value);break;}
+                Save(key switch{
+                    "codex"=>prefs with{Codex=value},"approval"=>prefs with{Approval=value},"question"=>prefs with{Question=value},
+                    "done"=>prefs with{Done=value},"history"=>prefs with{History=value},_=>throw new ArgumentException("未知设置。")});
+                if(!value && key!="history"){
+                    if(!prefs.Accept(Kind.Permission))foreach(var approval in officialEntries.Keys)approval.Respond("pass");
+                    RemoveCards(e=>e.Notice.Source!="preview"&&!prefs.Accept(e.Notice.Kind));
+                    activeRequests.RemoveWhere(e=>!prefs.Accept(e.Notice.Kind));
+                }
+                break;
+            }
+            case "material":{
+                var next=key switch{"Liquid"=>GlassMaterial.Liquid,"LiquidSystem"=>GlassMaterial.LiquidSystem,"Frosted"=>GlassMaterial.Frosted,_=>throw new ArgumentException("未知材质。")};
+                GlassPreference.Write(next);material=next;foreach(var e in cards)e.Window?.ApplyMaterial(next);Audit.Write($"glass-material selected={next}");break;
+            }
+            case "openLogs":
+                Directory.CreateDirectory(About.LogDir);
+                Process.Start(new ProcessStartInfo(About.LogDir) { UseShellExecute=true })?.Dispose();
+                break;
+            case "clear":history.Clear();break;
+            case "open":case "copy":{
+                if(!Guid.TryParse(key,out var id))throw new ArgumentException("提醒编号无效。");
+                var r=history.Find(id);
+                if(msg.Str("action")=="open"){OpenReminder(r);}
+                else{
+                    var a=r.Refs.FirstOrDefault();
+                    var workspace=workspaces.For(r.Chat);
+                    Clipboard.SetText($"浮笺 · 单条诊断\n时间：{r.At:O}\n客户端：Codex\n类型：{KindName(r.Kind)}\n状态：{r.Status}\n标题：{RowTitle(r)}\n项目 / 工作区：{workspace.Label}{(workspace.Path.Length>0?" · "+workspace.Path:"")}\n对话编号：{(r.Chat==Guid.Empty?"未记录":r.Chat)}\n请求或回合：{a?.Id}\n来源：{a?.Source}\n居中：{r.Geometry}\n键盘焦点：{FocusText(r.Focus)}");
+                    settings?.Copied(key);
+                }
+                break;
+            }
+            case "trial":
+                ScheduleSettingsTrial(key);break;
+            case "endtrial":EndSettingsTrial();break;
+            default:throw new ArgumentException("未知操作。");
+        }
+    }
+    void OpenReminder(HistoryRow row)
+    {
+        if(row.Chat==Guid.Empty)return;
+        Program.OpenThread(row.Chat);
+        if(!row.Pending || !prefs.Accept(row.Kind))return;
+        var entry=activeRequests.FirstOrDefault(e=>e.HistoryId==row.Id);
+        if(entry==null)return;
+        if(!cards.Contains(entry))AddCard(entry);
+        Reveal(entry);
+    }
+    void ScheduleSettingsTrial(string key)
+    {
+        if(TrialInProgress || settings==null)return;
+        trialKind=key switch{"approval"=>Kind.Permission,"question"=>Kind.Question,"done"=>Kind.Done,_=>throw new ArgumentException("未知卡片。")};
+        settings.MinimizeForTrial();
+        trialTimer.Start();
+    }
+    public void CancelTrialOnRestore()
+    {
+        if(trialTimer.Enabled)EndSettingsTrial();
+    }
+    void ShowScheduledTrial()
+    {
+        trialTimer.Stop();
+        if(shuttingDown || settings==null)return;
+        settingsTrial=Guid.NewGuid().ToString();
+        var entry=new Entry(new(trialKind,Guid.Empty,settingsTrial,Source:"preview"));
+        AddCard(entry);
+        settings.RefreshState();
+    }
+    void EndSettingsTrial()
+    {
+        if(trialTimer.Enabled){trialTimer.Stop();settings?.RefreshState();}
+        if(settingsTrial==null)return;
+        var id=settingsTrial;settingsTrial=null;
+        RemoveCards(e=>e.Notice.Id==id && e.Notice.Source=="preview");
+        settings?.RefreshState();
+    }
+    void Record(Action write)
+    {
+        try{write();}catch(Exception ex) when(ex is IOException or UnauthorizedAccessException){Audit.Write("history-write-failed error="+ex.GetType().Name);}
+    }
+}

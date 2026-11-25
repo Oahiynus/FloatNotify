@@ -1,0 +1,25 @@
+<Window x:Class="FloatNotify.OverflowWindow" x:ClassModifier="internal"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="浮笺 · 更多提醒" Width="142" Height="44" WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+ ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True" ShowActivated="False" WindowStartupLocation="Manual"
+ FontFamily="Segoe UI, Microsoft YaHei UI" UseLayoutRounding="True">
+ <Window.Resources>
+  <LinearGradientBrush x:Key="Crystal" StartPoint="0,0" EndPoint="0.4,1"><GradientStop Color="#F8FBFDFF"/><GradientStop Color="#E3EAF0F6" Offset=".63"/><GradientStop Color="#EAF6FAFC" Offset="1"/></LinearGradientBrush>
+  <Style TargetType="MenuItem"><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="MenuItem">
+   <Border x:Name="Row" CornerRadius="9" Padding="12,6" Background="Transparent"><ContentPresenter ContentSource="Header"/></Border>
+   <ControlTemplate.Triggers><Trigger Property="IsHighlighted" Value="True"><Setter TargetName="Row" Property="Background" Value="#DCEAF7"/></Trigger></ControlTemplate.Triggers>
+  </ControlTemplate></Setter.Value></Setter></Style>
+ </Window.Resources>
+ <Button x:Name="More" Margin="4" Padding="12,0" Foreground="#293E50" FontSize="13" FontWeight="SemiBold">
+  <Button.Template><ControlTemplate TargetType="Button"><Border x:Name="Shell" CornerRadius="18" Background="{StaticResource Crystal}" BorderBrush="#ADBAC9D3" BorderThickness="1">
+   <Border CornerRadius="17" BorderBrush="#DFFFFFFF" BorderThickness="1"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+   </Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Shell" Property="BorderBrush" Value="#899FB6"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Button.Template>
+  <StackPanel Orientation="Horizontal"><Path Width="16" Height="16" VerticalAlignment="Center" Stroke="#536B7E" StrokeThickness="1.3" StrokeLineJoin="Round" Data="M2,6 L8,3 L14,6 L8,9 Z M2,9 L8,12 L14,9 M3,12 L8,14.5 L13,12"/><TextBlock x:Name="Caption" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel>
+  <Button.ContextMenu><ContextMenu x:Name="Picker" Placement="Top" MinWidth="220" MaxWidth="340" FontFamily="Segoe UI, Microsoft YaHei UI" Foreground="#233647">
+   <ContextMenu.Template><ControlTemplate TargetType="ContextMenu"><Border Margin="2" CornerRadius="14" BorderThickness="1" BorderBrush="#B1C1CB" Background="#F4F8FB" Padding="5">
+    <ScrollViewer MaxHeight="{TemplateBinding MaxHeight}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"/></ScrollViewer>
+   </Border></ControlTemplate></ContextMenu.Template>
+  </ContextMenu></Button.ContextMenu>
+ </Button>
+</Window>
+

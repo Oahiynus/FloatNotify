@@ -1,0 +1,14 @@
+/工作资料/
+bin/
+obj/
+dist/
+TestResults/
+__pycache__/
+.vs/
+*.user
+*.suo
+*.pfx
+*.p12
+*.key
+.env
+.env.local
