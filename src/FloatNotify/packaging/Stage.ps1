@@ -5,11 +5,18 @@ $ErrorActionPreference='Stop'
 $src=(Get-Item -LiteralPath (Join-Path $PSScriptRoot '..')).FullName
 $build=[IO.Path]::GetFullPath($BuildDirectory)
 if(Test-Path -LiteralPath $build){throw 'Choose a new, empty build path.'}
-$clean=Join-Path $build 'source'
+$repo=(Get-Item -LiteralPath (Join-Path $src '../..')).FullName
+$cleanRoot=Join-Path $build 'source'
+$clean=Join-Path $cleanRoot 'src/FloatNotify'
 $publish=Join-Path $build 'publish'
 $stage=Join-Path $build 'payload'
 foreach($dir in $clean,$stage){$null=New-Item -ItemType Directory -Path $dir -Force}
 $manifest=@(Get-Content -LiteralPath (Join-Path $PSScriptRoot 'files.txt') | Where-Object {$_})
+foreach($rel in @('LICENSE','THIRD-PARTY-NOTICES.md')+@($manifest.Where({$_.StartsWith('Notices/')}))){
+    $dest=Join-Path $cleanRoot $rel
+    $null=New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dest)
+    Copy-Item -LiteralPath (Join-Path $repo $rel) -Destination $dest
+}
 $sourceFiles=@('FloatNotify.csproj','NuGet.Config','BuildGlass.cmd','GlassBackdrop.cpp','GlassCapture.h','LiquidLens.cpp','Register.ps1',
     'Card.xaml','Card.xaml.cs','OverflowWindow.xaml','OverflowWindow.xaml.cs','CardPlacement.cs','Checks.cs','CodexHookReport.cs',
     'DesktopChatRoutes.cs','DiagnosticReport.cs','DirectChoices.cs','Events.cs','ForegroundChat.cs','FormBridge.cs','GlassSurface.cs',
@@ -30,12 +37,13 @@ if($LASTEXITCODE){throw 'Release build failed.'}
 $sdkVersion=($project.Project.ItemGroup.PackageReference | Where-Object Include -eq 'Microsoft.Web.WebView2').Version
 $assets=Get-Content -Raw -LiteralPath (Join-Path $clean 'obj/project.assets.json')|ConvertFrom-Json -AsHashtable
 $pkg=@($assets.packageFolders.Keys|ForEach-Object {Join-Path $_ "microsoft.web.webview2/$sdkVersion"}|Where-Object {Test-Path -LiteralPath (Join-Path $_ 'LICENSE.txt')})[0]
+foreach($name in 'LICENSE.txt','NOTICE.txt'){
+    $upstream=Get-FileHash -LiteralPath (Join-Path $pkg $name)
+    $included=Get-FileHash -LiteralPath (Join-Path $publish ('Notices/WebView2-'+$name))
+    if($included.Hash -ne $upstream.Hash){throw "WebView2 $sdkVersion $name differs from the upstream package."}
+}
 foreach($rel in $manifest){
-    $from=switch($rel){
-        'Notices/WebView2-LICENSE.txt' {Join-Path $pkg 'LICENSE.txt'}
-        'Notices/WebView2-NOTICE.txt' {Join-Path $pkg 'NOTICE.txt'}
-        default {Join-Path $publish $rel}
-    }
+    $from=Join-Path $publish $rel
     $to=Join-Path $stage $rel
     $null=New-Item -ItemType Directory -Force -Path (Split-Path -Parent $to)
     if($rel -eq 'Register.ps1'){

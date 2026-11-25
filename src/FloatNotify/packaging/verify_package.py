@@ -16,6 +16,10 @@ parser.add_argument("sevenzip", type=Path)
 parser.add_argument("--forbid", action="append", default=[], help="Private marker checked locally; not stored in the release")
 args = parser.parse_args()
 here = Path(__file__).resolve().parent
+repo = here.parents[2]
+notices = {"LICENSE", "THIRD-PARTY-NOTICES.md"} | {
+    p.relative_to(repo).as_posix() for p in (repo / "Notices").glob("*.txt")
+}
 expected = set((here / "files.txt").read_text(encoding="utf-8-sig").splitlines())
 archive = args.installer.read_bytes()
 inventory = dict(line.split("  ", 1)[::-1] for line in (args.build / "inventory.txt").read_text(encoding="utf-8-sig").splitlines())
@@ -61,6 +65,8 @@ with tempfile.TemporaryDirectory(prefix="FloatNotify-audit-") as temp:
     actual = {p.relative_to(payload).as_posix() for p in payload.rglob("*") if p.is_file()}
     if actual != expected:
         raise ValueError(f"Unexpected archive contents: {actual ^ expected}")
+    if not notices.issubset(actual):
+        raise ValueError(f"Missing distribution notices: {notices - actual}")
     support = {"InstallSupport.ps1", "inventory.txt", "modern-wizard.bmp", "nsDialogs.dll", "nsExec.dll", "System.dll"}
     wrapper = {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file() and not p.is_relative_to(payload)}
     if wrapper != {"$PLUGINSDIR/" + s for s in support}:
@@ -70,6 +76,8 @@ with tempfile.TemporaryDirectory(prefix="FloatNotify-audit-") as temp:
             privacy(part.read_bytes(), str(part.relative_to(root)))
     for rel in sorted(actual):
         data = (payload / rel).read_bytes()
+        if rel in notices and data != (repo / rel).read_bytes():
+            raise ValueError(f"Packaged notice differs from repository: {rel}")
         if hashlib.sha256(data).hexdigest().upper() != inventory[rel] or data != (args.build / "payload" / rel).read_bytes():
             raise ValueError(f"File differs from clean staged build: {rel}")
     for rel in ("FloatNotify.exe", "FloatNotify.dll", "GlassBackdrop.dll", "WebView2Loader.dll"):

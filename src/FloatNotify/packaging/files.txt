@@ -18,5 +18,12 @@ SettingsUI/codex.png
 SettingsUI/claude.png
 SettingsUI/deepseek.svg
 SettingsUI/gemini.png
+LICENSE
+THIRD-PARTY-NOTICES.md
+Notices/CppWinRT-LICENSE.txt
+Notices/dotnet-apphost-LICENSE.txt
+Notices/dotnet-THIRD-PARTY-NOTICES.txt
+Notices/MSVC-STL-LICENSE.txt
+Notices/NSIS-COPYING.txt
 Notices/WebView2-LICENSE.txt
 Notices/WebView2-NOTICE.txt

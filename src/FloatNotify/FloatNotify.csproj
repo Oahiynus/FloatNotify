@@ -10,6 +10,8 @@
     <Product>浮笺 FloatNotify</Product>
     <ApplicationIcon>SettingsUI\folio.ico</ApplicationIcon>
     <Version>1.0.2</Version>
+    <Authors>Oahiynus</Authors>
+    <Copyright>Copyright (c) 2026 Oahiynus</Copyright>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
   </PropertyGroup>
   <Target Name="BuildGlassBackdrop" BeforeTargets="PrepareForBuild" Inputs="GlassBackdrop.cpp;LiquidLens.cpp;GlassCapture.h;BuildGlass.cmd" Outputs="$(IntermediateOutputPath)glass\GlassBackdrop.dll">
@@ -19,6 +21,8 @@
     <Content Include="$(IntermediateOutputPath)glass\GlassBackdrop.dll" Link="GlassBackdrop.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3537.50" />
     <Content Include="SettingsUI\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\LICENSE;..\..\THIRD-PARTY-NOTICES.md" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\Notices\*.txt" Link="Notices\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Using Include="System.IO" />
     <None Update="Register.ps1" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>

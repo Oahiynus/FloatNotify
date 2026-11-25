@@ -1,0 +1,4 @@
+# Preserve the upstream notice files byte-for-byte on every checkout.
+Notices/*.txt -text
+LICENSE text eol=lf
+THIRD-PARTY-NOTICES.md text eol=lf

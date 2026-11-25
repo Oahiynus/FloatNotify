@@ -38,3 +38,7 @@
 默认安装目录为 `%LOCALAPPDATA%\Programs\FloatNotify`，个人设置与提醒历史保存在 `%LOCALAPPDATA%\FloatNotify`。右键托盘图标可退出浮笺。在 Windows「已安装的应用」中卸载时，安装器会移除本次安装的程序和 Hook，保留个人设置与提醒历史。
 
 从源码编译、运行自检和制作安装包请参阅[开发说明](docs/development.md)。
+
+## 许可证与图标
+
+浮笺的自有源码、脚本和文档采用 [MIT 许可证](LICENSE)，版权归 Oahiynus。浮页图标由 Oahiynus 单独保留权利。客户端品牌图标及截图中的对应标识归各自权利人。随附组件的许可、图标的来源和使用范围见[许可与第三方声明](THIRD-PARTY-NOTICES.md)。

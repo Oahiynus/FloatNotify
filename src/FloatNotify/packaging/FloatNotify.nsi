@@ -20,7 +20,7 @@ VIAddVersionKey /LANG=2052 "ProductName" "${App}"
 VIAddVersionKey /LANG=2052 "FileDescription" "浮笺 Windows x64 安装程序"
 VIAddVersionKey /LANG=2052 "FileVersion" "${AppVersion}"
 VIAddVersionKey /LANG=2052 "ProductVersion" "${AppVersion}"
-VIAddVersionKey /LANG=2052 "LegalCopyright" "FloatNotify"
+VIAddVersionKey /LANG=2052 "LegalCopyright" "Copyright (c) 2026 Oahiynus"
 ShowInstDetails show
 ShowUninstDetails show
 Var Registered

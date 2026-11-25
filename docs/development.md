@@ -30,7 +30,7 @@ python ./packaging/verify_package.py $setup $build $sevenZip
 Get-FileHash -LiteralPath $setup -Algorithm SHA256
 ```
 
-`Build.ps1` 需要全新的暂存目录。它会重新编译程序、运行自检，按 `packaging/files.txt` 装入应用文件和 WebView2 许可声明。`verify_package.py` 解包核对文件清单、逐文件哈希、架构和本机构建路径。将本次验证用的安装包和已发布安装包分别保存。
+`Build.ps1` 需要全新的暂存目录。它会重新编译程序、运行自检，按 `packaging/files.txt` 装入应用、项目许可证和第三方声明。仓库根目录的 `LICENSE`、`THIRD-PARTY-NOTICES.md` 与 `Notices/` 也会随直接发布的程序输出。打包时会将 WebView2 的两份声明与实际还原的 NuGet 包逐字节比对。`verify_package.py` 解包核对文件清单、逐文件哈希、架构和本机构建路径。将本次验证用的安装包和已发布安装包分别保存。
 
 ## 事件来源与桌面复核
 
