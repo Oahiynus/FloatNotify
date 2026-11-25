@@ -6,19 +6,6 @@
 
 浮页图标（`SettingsUI/folio.png` 和 `SettingsUI/folio.ico`）© 2026 Oahiynus，保留所有权利。浮笺的 MIT 许可不涵盖图标，包括程序、安装器和文档截图中呈现的图标。单独复用、修改或再分发该图标，请向 Oahiynus 取得许可。
 
-## 客户端品牌图标
-
-这些图形用于设置界面的客户端标识，相关商标和图形权利归各自权利人。源码树中的位置为 `src/FloatNotify/SettingsUI/`，安装后位于 `SettingsUI/`。作品出处及品牌使用规则如下。
-
-| 文件 | 来源与权利人 | 本版用途及品牌规则 |
-| --- | --- | --- |
-| `codex.png` | OpenAI 官方桌面应用包中的 Codex 产品图标 | 标识已适配的 Codex，在设置页和最近提醒中显示。[OpenAI 品牌指南](https://openai.com/brand/) |
-| `claude.png` | Anthropic 官方 Claude Code 扩展页 | 标识待适配的 Claude Code。Anthropic 的指南要求取得特定许可并事先审批使用材料。[Anthropic 商标指南](https://www.anthropic.com/legal/trademark-guidelines) |
-| `deepseek.svg` | DeepSeek 官方站点的蓝鲸图标 | 标识待适配的 DeepSeek Harness。浮笺 1.0.2 尚未接入 DeepSeek 模型或 API。官方规范对实际接入及描述性使用设有条件。[素材来源](https://fe-static.deepseek.com/chat/favicon.svg) · [DeepSeek 品牌素材规范](https://github.com/deepseek-ai/awesome-deepseek-integration/blob/main/docs/_logo%20svg/guidelines.md) |
-| `gemini.png` | Google Antigravity 官方站点的产品图标 | 界面中对应待适配的 Antigravity。Google 对产品图标的使用及兼容性展示另有规则。[Antigravity 官方素材页](https://antigravity.google/press) · [Google 产品图标规则](https://about.google/brand-resource-center/brand-elements/) |
-
-浮笺的 MIT 许可也不涵盖上述品牌图形及其在截图中的呈现。项目目前没有记录可覆盖这四份素材随公开源码、安装包再分发的授权。出处标注仅用于识别权利人。保留这些素材公开分发前，仍需确认相应用途的授权依据。
-
 ## 随安装包提供的组件
 
 | 组件 | 使用方式 | 随附声明 |
