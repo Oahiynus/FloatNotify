@@ -4,6 +4,8 @@
 
 **版本 1.0.3 · Windows x64 · 开发者 Oahiynus**　[查看本版更新](docs/releases/1.0.3.md)
 
+**下载**　[Windows x64 安装包](https://github.com/Oahiynus/FloatNotify/releases/download/v1.0.3/FloatNotify-1.0.3-windows-x64-Setup.exe) · [.sha256 校验文件](https://github.com/Oahiynus/FloatNotify/releases/download/v1.0.3/FloatNotify-1.0.3-windows-x64-Setup.exe.sha256) · [v1.0.3 Release](https://github.com/Oahiynus/FloatNotify/releases/tag/v1.0.3)
+
 ![三条虚构对话同时收到提醒。完成卡保持完整，问答卡露出对话名，最前面的审批卡显示请求和操作按钮。](docs/images/notification-stack.png)
 
 图中是三个虚构任务，使用 1.0.2 安装包中的原生卡片离屏渲染。可以直接处理最前面的审批，也可以点后方问答卡露出的标题，把它翻到前面。
