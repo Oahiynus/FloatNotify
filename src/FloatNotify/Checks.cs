@@ -31,6 +31,15 @@ internal static class Checks
             !response.Resolves(chat,[desktop with{Id="other/0"}]),"desktop replies require the matching desktop instance and request");
         Ok(!response.Resolves(chat,aliases) && response.Resolves(chat,[desktop with{CallId="call"},sessionRef]),"legacy time-linked history cannot close a structured question on an unverified receipt");
         CheckQuestionIdentity(chat,turn,Ok);
+        var duplicate=new FormBridge.QuestionScope(new DesktopChatRoutes(),false);
+        Ok(duplicate.Matches(chat,chat,"同名对话","同名对话"),"same-name question follows the matching window route");
+        Ok(duplicate.Matches(chat,chat,"Codex","同名对话"),"the identified main window may use the application title");
+        Ok(!duplicate.Matches(chat,Guid.NewGuid(),"同名对话","同名对话"),"a different same-name chat cannot receive the answer");
+        Ok(!duplicate.Matches(chat,null,"同名对话","同名对话"),"same-name questions require a known route");
+        var unique=duplicate with{UniqueTitle=true};
+        Ok(unique.Matches(chat,null,"唯一对话","唯一对话") && !unique.Matches(chat,null,"Codex","唯一对话"),
+            "only an exact unique title can stand in for a missing route");
+        Ok(!unique.Matches(chat,Guid.NewGuid(),"唯一对话","唯一对话"),"a different known route overrides a matching title");
         Ok(Events.Desktop($"2026-11-24T00:00:00.000Z info [electron-message-handler] [windows-review-request] reveal requested conversationId={chat} hostId=local method=mcpServer/elicitation/request requestId=21 wasMinimized=true")?.Kind==Kind.Permission,"MCP request");
         Ok(Events.Desktop(log+$"received approval conversationId=invalid requestId=23")==null,"invalid chat");
         Ok(Events.Desktop("Tool requested elevated permissions: require_escalated")==null,"automatic escalation");

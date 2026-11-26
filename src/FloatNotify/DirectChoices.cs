@@ -14,6 +14,7 @@ internal sealed class DirectChoices : IDisposable
     readonly Card card;
     readonly string chat;
     readonly Func<bool> canBind;
+    readonly Func<FormBridge.QuestionScope>? questionScope;
     readonly bool preview;
     readonly DispatcherTimer retry = new(){Interval=TimeSpan.FromMilliseconds(500)};
     Notice notice;
@@ -24,9 +25,9 @@ internal sealed class DirectChoices : IDisposable
     FormBridge.MenuSession? menu;
     FormBridge.View? menuView;
     int generation;
-    public DirectChoices(Card card,Notice n,string chat,Func<bool> canBind)
+    public DirectChoices(Card card,Notice n,string chat,Func<bool> canBind,Func<FormBridge.QuestionScope>? questionScope)
     {
-        this.card=card; notice=n; this.chat=chat; this.canBind=canBind;
+        this.card=card; notice=n; this.chat=chat; this.canBind=canBind; this.questionScope=questionScope;
         preview=n.Source=="preview";
         if(preview)
         {
@@ -242,6 +243,11 @@ internal sealed class DirectChoices : IDisposable
     }
     static bool Equivalent(FormBridge.View? a,FormBridge.View? b)=>a==null ? b==null :
         b!=null && a.MatchesForm(b) && a.Editable==b.Editable && a.Actions.SequenceEqual(b.Actions);
+    Task<FormBridge.View?> ReadOriginal(Notice request)
+    {
+        var scope=questionScope?.Invoke();
+        return Task.Run(()=>FormBridge.Read(request,chat,questionScope:scope));
+    }
     async void RefreshOriginal()
     {
         if(disposed||reading||sending||!card.IsVisible)return;
@@ -256,7 +262,7 @@ internal sealed class DirectChoices : IDisposable
         try
         {
             var activeMenu=menu;
-            var result=await Task.Run(()=>FormBridge.Read(request,chat));
+            var result=await ReadOriginal(request);
             if(disposed||version!=generation||sending)return;
             if(!canBind())result=null;
             if(!Equivalent(view,result))
@@ -296,7 +302,7 @@ internal sealed class DirectChoices : IDisposable
             if(remaining<=TimeSpan.Zero)break;
             try
             {
-                var form=await Task.Run(()=>FormBridge.Read(request,chat)).WaitAsync(remaining);
+                var form=await ReadOriginal(request).WaitAsync(remaining);
                 if(form!=null)return form;
             }
             catch(TimeoutException){break;}
@@ -338,7 +344,11 @@ internal sealed class DirectChoices : IDisposable
         {
             error=await Task.Run(()=>FormBridge.SubmitMenu(request,chat,parent,menuSource,value));
         }
-        else error=await Task.Run(()=>FormBridge.Submit(request,chat,current,value,custom));
+        else
+        {
+            var scope=questionScope?.Invoke();
+            error=await Task.Run(()=>FormBridge.Submit(request,chat,current,value,custom,scope));
+        }
         if(error=="")Audit.Write($"original-control-invoked kind={request.Kind.ToString().ToLowerInvariant()} request={request.Id} menu={menuSource!=null}");
         if(disposed)return;
         if(error=="" && question)

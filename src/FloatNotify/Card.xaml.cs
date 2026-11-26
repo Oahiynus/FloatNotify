@@ -50,7 +50,7 @@ internal partial class Card : Window, IDisposable
     public string DisplayedTitle => DoneText.Text;
     public IntPtr Handle => new WindowInteropHelper(this).Handle;
     const double OuterMargin = 36;
-    public Card(Notice notice, string chat, Action open, Action dismiss, Func<bool> canBind, GlassMaterial material=GlassMaterial.Liquid)
+    public Card(Notice notice, string chat, Action open, Action dismiss, Func<bool> canBind, GlassMaterial material=GlassMaterial.Liquid, Func<FormBridge.QuestionScope>? questionScope=null)
     {
         InitializeComponent();
         this.dismiss = dismiss;
@@ -80,7 +80,7 @@ internal partial class Card : Window, IDisposable
                 ? "M12,2 L20,5.5 V11 Q20,17 12,21 Q4,17 4,11 V5.5 Z M8,11 L11,14 16,8.5"
                 : "M6,3 H18 Q21,3 21,6 V15 Q21,18 18,18 H10 L4,21 5,17 Q3,16 3,14 V6 Q3,3 6,3 Z M7,8 H17 M7,12 H14");
 
-            choices = new DirectChoices(this, notice, chat, canBind);
+            choices = new DirectChoices(this, notice, chat, canBind, questionScope);
             IsVisibleChanged += (_,_) => { if(IsVisible) choices.StartReading(); else choices.PauseReading(); };
             PreviewKeyDown += OnUrgentKeyDown;
         }

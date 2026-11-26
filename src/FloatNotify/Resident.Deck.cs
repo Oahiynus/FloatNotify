@@ -47,8 +47,8 @@ internal sealed partial class Resident
         var title=CachedTitle(notice.Chat);
         bool CanBind()
         {
-            if(!entry.Visible || !activeRequests.Contains(entry) || !HasUniqueTitle(notice.Chat,title))return false;
-            if(notice.Kind==Kind.Permission)return activeRequests.Count(e=>e.Notice.Chat==notice.Chat && e.Notice.Kind==Kind.Permission)==1;
+            if(!entry.Visible || !activeRequests.Contains(entry) || notice.Chat==Guid.Empty)return false;
+            if(notice.Kind==Kind.Permission)return HasUniqueTitle(notice.Chat,title) && activeRequests.Count(e=>e.Notice.Chat==notice.Chat && e.Notice.Kind==Kind.Permission)==1;
             var request=entry.Notice;
             return request.Prompts!=null && !activeRequests.Any(other=>other!=entry && other.Notice.Kind==Kind.Question &&
                 other.Notice.Chat==request.Chat && other.Notice.Prompts?.Any(p=>request.Prompts.Any(q=>q.Title==p.Title))==true);
@@ -66,7 +66,8 @@ internal sealed partial class Resident
                 entry.Window?.SetBody("请从任务栏打开 Codex，进入这条对话。");
             }
         }
-        var card=new Card(notice,title,OpenOriginal,Dismiss,CanBind,material);
+        var card=new Card(notice,title,OpenOriginal,Dismiss,CanBind,material,notice.Kind==Kind.Question
+            ? ()=>new FormBridge.QuestionScope(monitor.Routes,HasUniqueTitle(notice.Chat,title)) : null);
         card.LayoutRequested+=ScheduleLayout;
         card.HeaderClicked+=()=>Reveal(entry);
         return card;

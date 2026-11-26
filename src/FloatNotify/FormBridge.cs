@@ -46,7 +46,16 @@ internal static class FormBridge
         return property!=null && e.GetCurrentPropertyValue(property) is string s &&
             (s.Contains("haspopup=menu",StringComparison.OrdinalIgnoreCase)||s.Contains("haspopup=true",StringComparison.OrdinalIgnoreCase));
     }
-    static IEnumerable<AutomationElement> DocumentsNamed(string title,bool includeActivity)
+    internal sealed record QuestionScope(DesktopChatRoutes Routes, bool UniqueTitle)
+    {
+        public bool Matches(Guid chat, Guid? route, string document, string title)
+        {
+            if (route is {} id)
+                return id == chat && (document == title || document is "ChatGPT" or "Codex");
+            return UniqueTitle && document == title;
+        }
+    }
+    static IEnumerable<AutomationElement> DocumentsNamed(string title,bool includeActivity,Guid chat=default,QuestionScope? questionScope=null)
     {
         var windows=new List<IntPtr>();
         Native.EnumWindows((h,_)=>{if(Native.IsCodexWindow(h))windows.Add(h);return true;},IntPtr.Zero);
@@ -55,11 +64,14 @@ internal static class FormBridge
             AutomationElement[] docs;
             try{docs=AutomationElement.FromHandle(h).FindAll(Deep,Documents).Cast<AutomationElement>().ToArray();}
             catch(Exception e) when(ExpectedError(e)){continue;}
+            Guid? route=questionScope==null?null:Native.ForegroundRoute(h,questionScope.Routes);
             foreach(var doc in docs)
             {
                 string name;
                 try{name=doc.Current.Name;}catch(Exception e) when(ExpectedError(e)){continue;}
-                if(name==title || includeActivity && name is "ChatGPT" or "Codex")yield return doc;
+                bool matches=questionScope!=null ? questionScope.Matches(chat,route,name,title)
+                    : name==title || includeActivity && name is "ChatGPT" or "Codex";
+                if(matches)yield return doc;
             }
         }
     }
@@ -164,13 +176,13 @@ internal static class FormBridge
         session.OpenedMenu=Id(candidate);
         return items;
     }
-    static Located? Find(Notice request,string title,MenuSession? menu=null)
+    static Located? Find(Notice request,string title,MenuSession? menu=null,QuestionScope? questionScope=null)
     {
         if(request.Chat==Guid.Empty || title.Length==0)return null;
         bool approval=request.Kind==Kind.Permission;
         var prompts=request.Prompts??[];
         // Prefer the conversation over its activity window. Require a unique match at either priority.
-        var documents=DocumentsNamed(title,approval).GroupBy(doc=>doc.Current.Name==title).OrderByDescending(group=>group.Key);
+        var documents=DocumentsNamed(title,approval,request.Chat,questionScope).GroupBy(doc=>doc.Current.Name==title).OrderByDescending(group=>group.Key);
         foreach(var group in documents)
         {
             Located? match=null;
@@ -252,9 +264,9 @@ internal static class FormBridge
                 IsType(e,ControlType.Button)||IsType(e,ControlType.CheckBox)) && (Has(e,SelectionItemPattern.Pattern)||Has(e,InvokePattern.Pattern)||Has(e,TogglePattern.Pattern))).ToArray();
         return options.Length==1?options[0]:null;
     }
-    public static View? Read(Notice n,string title,MenuSession? menu=null)
+    public static View? Read(Notice n,string title,MenuSession? menu=null,QuestionScope? questionScope=null)
     {
-        try{return Find(n,title,menu)?.View;}catch(Exception e) when(ExpectedError(e)){return null;}
+        try{return Find(n,title,menu,questionScope)?.View;}catch(Exception e) when(ExpectedError(e)){return null;}
     }
     static bool Same(View a,View b)=>a.MatchesForm(b) &&
         a.Actions.Select(x=>(x.Key,x.Label,x.Menu)).SequenceEqual(b.Actions.Select(x=>(x.Key,x.Label,x.Menu)));
@@ -319,12 +331,12 @@ internal static class FormBridge
         var matches=reopened.Actions.Where(a=>a.Label==label).ToArray();
         return matches is [{Enabled:true,Menu:false} only]?only:null;
     }
-    public static string Submit(Notice n,string title,View shown,string value,bool custom)
+    public static string Submit(Notice n,string title,View shown,string value,bool custom,QuestionScope? questionScope=null)
     {
         const string stale="ChatGPT 中的请求已变化。请重新查看原选项。";
         try
         {
-            var f=Find(n,title,shown.Menu);
+            var f=Find(n,title,shown.Menu,questionScope);
             if(f==null || !Same(shown,f.View))return stale;
             if(n.Kind==Kind.Permission)
             {
@@ -362,7 +374,7 @@ internal static class FormBridge
             // React may replace a control after a choice. Never send a different form.
             for(int i=0;i<8;i++)
             {
-                var fresh=Find(n,title);
+                var fresh=Find(n,title,questionScope:questionScope);
                 if(fresh==null || !Same(shown,fresh.View))return stale;
                 if(fresh.Submit?.Current.IsEnabled==true)
                 {
