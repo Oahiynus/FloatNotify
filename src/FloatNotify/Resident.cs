@@ -99,7 +99,9 @@ internal sealed partial class Resident : ApplicationContext
                 switch(root.Str("action"))
                 {
                     case "settings":Post(OpenSettings);break;
-                    case "hint":monitor.Hint(root.Str("path"));break;
+                    case "hint":
+                        if(monitor.Hint(root.Str("path")))Post(()=>VerifyEvent(ConnectionVerification.Signal.Stop));
+                        break;
                     case "exit":Post(ExitThread);break;
                     case "dismiss-preview":Post(()=>{EndSettingsTrial();RemoveCards(e=>e.Notice.Source=="preview");});break;
                     case "preview":
@@ -219,6 +221,7 @@ internal sealed partial class Resident : ApplicationContext
         {
             if(n.Source=="native" && HandledInOriginal(n,n.Body))return;
         }
+        if(ConnectionVerification.FromNotice(n) is {} signal)VerifyEvent(signal);
         var entry=new Entry(n);
         if(n.Urgent && n.Source!="preview")activeRequests.Add(entry);
         if(n.Approval!=null)officialEntries.Add(n.Approval,entry);
@@ -330,8 +333,9 @@ internal sealed partial class Resident : ApplicationContext
     }
     async void Tick()
     {
+        bool connectionChanged=RefreshConnection();
         if(settings is {WindowState:not FormWindowState.Minimized} &&
-            (publishedRevision!=history.Revision || RefreshConnection()))settings.RefreshState();
+            (publishedRevision!=history.Revision || connectionChanged))settings.RefreshState();
         if(pollingViews || cards.Count==0)return;
         var completions=cards.Where(e=>e.Visible && e.Notice.Kind==Kind.Done && e.Notice.Chat!=Guid.Empty && !e.CheckingView).ToArray();
         if(completions.Length==0)return;

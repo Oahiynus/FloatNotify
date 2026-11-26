@@ -36,4 +36,6 @@ Get-FileHash -LiteralPath $setup -Algorithm SHA256
 
 浮笺通过 Codex 的 `PermissionRequest` 和 `Stop` Hook 处理人工审批和完成提醒，并增量读取本地桌面日志与会话记录，识别提问和处理回执。桌面表单通过 Windows 辅助功能读取。应用设置、提醒历史和诊断文件位于当前用户的 `%LOCALAPPDATA%\FloatNotify`。
 
+接入验证保存在同目录的 `connection.json`。审批记录来自官方审批请求，问答记录来自桌面日志或会话事件，完成验证需要同时收到 Stop 和真实完成事件。修改某类事件的识别或处理约定时，同步更新 `ConnectionVerification.cs` 中对应的处理版本。设置和界面调整沿用原处理版本。
+
 启动应用后，可通过 `python ./verify_windows.py <FloatNotify.exe 的完整路径>` 复核三类卡片的位置和前台焦点。该脚本需要 Python 和 Tk，会短暂显示测试卡片，并最小化、恢复 Codex。要验证对话级的完成提示，运行 `./Verify-ChatCompletion.ps1 -Exe <程序路径> -Chat <测试对话编号>`。

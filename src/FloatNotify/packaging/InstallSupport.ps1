@@ -64,7 +64,6 @@ try {
     $present=[IO.Directory]::Exists($dest)
     if($RegisteredDirectory -and !$owned){throw 'Use the registered directory, or uninstall before moving the installation.'}
     if($Action -eq 'Remove' -and !$owned){throw 'This directory does not match the registered installation.'}
-    if($Action -eq 'Install' -and !$owned -and $present -and @(Get-ChildItem -LiteralPath $dest -Force).Count){throw 'Choose a new or empty application directory.'}
     $exe=Join-Path $dest 'FloatNotify.exe'
     $files=[ordered]@{}
     foreach($line in [IO.File]::ReadAllLines((Join-Path $PSScriptRoot 'inventory.txt'))){
@@ -96,7 +95,26 @@ try {
     foreach($rel in $files.Keys){
         if((File-Digest (Join-Path $payload $rel)) -ne $files[$rel]){throw "Damaged package file: $rel"}
     }
-    if($owned){Stop-InstalledResident $exe}
+    $adopt=$false
+    if(!$owned -and $present -and @(Get-ChildItem -LiteralPath $dest -Force).Count){
+        # Only adopt a recognizable portable deployment in the directory selected by the user.
+        # The same inventory/rollback below owns all writes. Leave any other files in place.
+        $dll=Join-Path $dest 'FloatNotify.dll'
+        foreach($rel in 'FloatNotify.exe','FloatNotify.dll','FloatNotify.runtimeconfig.json','FloatNotify.deps.json'){
+            if(![IO.File]::Exists((Join-Path $dest $rel))){throw 'Choose an empty directory or an existing FloatNotify application directory.'}
+        }
+        if([IO.File]::Exists((Join-Path $dest 'Uninstall.exe'))){throw 'An unregistered uninstaller already exists in this directory.'}
+        foreach($path in $exe,$dll){
+            $info=[Diagnostics.FileVersionInfo]::GetVersionInfo($path)
+            $package=[Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $payload ([IO.Path]::GetFileName($path))))
+            if($info.ProductName -ne $package.ProductName -or $info.OriginalFilename -ne $package.OriginalFilename -or $info.CompanyName -ne $package.CompanyName){
+                throw 'Existing files do not identify this FloatNotify application.'
+            }
+            if([version]$info.FileVersion -gt [version]$package.FileVersion){throw 'The existing application is newer than this package.'}
+        }
+        $adopt=$true
+    }
+    if($owned -or $adopt){Stop-InstalledResident $exe}
     $copied=New-Object 'System.Collections.Generic.List[string]'
     try{
         foreach($rel in $names){

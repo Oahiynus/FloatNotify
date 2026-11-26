@@ -118,13 +118,16 @@ internal sealed class MonitorFiles : IDisposable
         string prefix=Path.EndsInDirectorySeparator(dir)?dir:dir+Path.DirectorySeparatorChar;
         return file.Length>prefix.Length && file.StartsWith(prefix,StringComparison.OrdinalIgnoreCase)?file:null;
     }
-    public void Hint(string? path)
+    public bool HasListener=>!Finished.IsCompleted && (sessionsAttached && Directory.Exists(sessionsRoot) || logsAttached && Directory.Exists(logsRoot));
+    public bool Hint(string? path)
     {
         if (SessionFile(sessionsRoot,path) is {} p && IsRollout(p) && Supported(p))
         {
             Volatile.Write(ref lastHookUtcTicks,DateTime.UtcNow.Ticks);
             changed[p]=0;
+            return File.Exists(p);
         }
+        return false;
     }
     void Attach(string dir)
     {

@@ -14,45 +14,36 @@ internal sealed partial class Resident
     Kind trialKind;
     bool TrialInProgress=>trialTimer.Enabled || settingsTrial!=null;
     int publishedRevision=-1;
-    internal sealed record Connection(string Kind,string Label,string Detail)
-    {
-        internal static Connection From(bool? stop,bool? approval,bool stopSeen,bool approvalSeen)
-        {
-            if(stop==null || approval==null)return new("idle","未能核实","无法读取 Hook 配置。可在通用设置中复制诊断信息。");
-            if(stop!=true && approval!=true)return new("idle","待配置","尚未找到指向当前安装位置且已启用的浮笺 Hook。");
-            if(stop!=true || approval!=true)return new("idle","部分配置",stop==true?"已登记完成 Hook，人工审批 Hook 缺失或已停用。":"已登记人工审批 Hook，完成 Hook 缺失或已停用。");
-            if(stopSeen && approvalSeen)return new("on","已接入","当前配置下已收到完成和人工审批 Hook。");
-            if(stopSeen || approvalSeen)return new("idle","部分已验证",stopSeen?"已收到完成 Hook，等待首次人工审批。":"已收到人工审批 Hook，等待首次完成事件。");
-            return new("idle","已配置，待验证","两个 Hook 均指向当前安装位置，等待 Codex 事件确认。");
-        }
-    }
-    (DateTime Hooks,DateTime Config)? connectionFiles;
-    bool? registeredStop,registeredApproval;
+    readonly ConnectionVerification verification=new(MonitorFiles.Home,Audit.Folder);
+    ConnectionState? connection;
     DateTime nextConnectionCheck;
-    Connection? connection;
-    bool RefreshConnection()
+    (DateTime Hooks,DateTime Config)? lastFiles;
+    DiagnosticReport.Hook? stopHook,approvalHook;
+    bool RefreshConnection(ConnectionVerification.Signal? signal=null)
     {
-        if(DateTime.UtcNow<nextConnectionCheck)return false;
+        if(signal==null && DateTime.UtcNow<nextConnectionCheck)return false;
         nextConnectionCheck=DateTime.UtcNow.AddSeconds(3);
-        var home=MonitorFiles.Home;
-        (DateTime Hooks,DateTime Config) stamps;
-        try{stamps=(File.GetLastWriteTimeUtc(Path.Combine(home,"hooks.json")),File.GetLastWriteTimeUtc(Path.Combine(home,"config.toml")));}
-        catch(Exception ex) when(ex is UnauthorizedAccessException or IOException){
-            connectionFiles=null;
-            var unknown=Connection.From(null,null,false,false);
-            if(connection==unknown)return false;
-            connection=unknown;return true;
+        string home=MonitorFiles.Home,exe=Path.Combine(About.InstallDir,"FloatNotify.exe");
+        try{
+            var files=(File.GetLastWriteTimeUtc(Path.Combine(home,"hooks.json")),File.GetLastWriteTimeUtc(Path.Combine(home,"config.toml")));
+            // Timestamps only save repeat parsing. Evidence is bound to the effective definition.
+            if(lastFiles!=files || signal!=null || stopHook?.Ready==null || approvalHook?.Ready==null){
+                stopHook=DiagnosticReport.InspectHook(home,exe,"Stop");
+                approvalHook=DiagnosticReport.InspectHook(home,exe,"PermissionRequest");
+                lastFiles=files;
+            }
+        }catch(Exception ex) when(ex is IOException or UnauthorizedAccessException){
+            stopHook=approvalHook=new(null,"无法读取 Hook 配置（"+ex.GetType().Name+"）");
+            lastFiles=null;
         }
-        if(connectionFiles!=stamps){
-            string exe=Path.Combine(About.InstallDir,"FloatNotify.exe");
-            registeredStop=DiagnosticReport.InspectHook(home,exe,"Stop").Registered;
-            registeredApproval=DiagnosticReport.InspectHook(home,exe,"PermissionRequest").Registered;
-            connectionFiles=stamps;
-        }
-        var since=stamps.Hooks>stamps.Config?stamps.Hooks:stamps.Config;
-        var next=Connection.From(registeredStop,registeredApproval,monitor.LastStopUtc>since,lastOfficialUtc>since);
-        if(next==connection)return false;
-        connection=next;return true;
+        var next=verification.Update(approvalHook!,stopHook!,monitor.HasListener,signal);
+        if(connection==next)return false;
+        connection=next;
+        return true;
+    }
+    void VerifyEvent(ConnectionVerification.Signal signal)
+    {
+        if(RefreshConnection(signal))settings?.RefreshState();
     }
     public void OpenSettings()
     {
@@ -91,6 +82,8 @@ internal sealed partial class Resident
 
     public async Task<string> AppDiagnosticsAsync()
     {
+        nextConnectionCheck=DateTime.MinValue;
+        RefreshConnection();
         string hooks=await CodexHookReport.ReadAsync(MonitorFiles.Home,Path.Combine(About.InstallDir,"FloatNotify.exe"));
         static string Setting(bool value) => value ? "开启" : "关闭";
         var queued=cards.Where(e=>!e.Visible && e.Notice.Source!="preview").ToArray();
@@ -123,6 +116,9 @@ internal sealed partial class Resident
             本次运行待回答：{pending.Count(e=>e!.Notice.Kind==Kind.Question)} 项
             正在显示：{displayed}
             折叠在更多提醒中：{queued.Length} 张
+
+            【三类提醒的接入验证】
+            {connection?.Detail}
 
             【Codex Hooks】
             {hooks}

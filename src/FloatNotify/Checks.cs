@@ -125,9 +125,68 @@ internal static class Checks
         check(receipt.Resolves(chat,first.Aliases) && !receipt.Resolves(chat,second.Aliases),"A's verified receipt leaves B actionable");
         check(!(new Notice(Kind.TurnEnded,chat,"old","turn_aborted","old")).Resolves(chat,first.Aliases),"the full live request survives an unrelated abort even if its session has no turn");
         check((new Notice(Kind.Answered,chat,"call_B")).Resolves(chat,second.Aliases),"session receipt also closes a desktop-first question");
-        check(Resident.Connection.From(false,false,true,true).Label=="待配置" && Resident.Connection.From(true,false,true,true).Label=="部分配置","missing registration wins over earlier traffic");
-        check(Resident.Connection.From(true,true,false,false).Kind!="on" && Resident.Connection.From(true,true,true,false).Kind!="on" &&
-            Resident.Connection.From(true,true,true,true).Kind=="on","green connection requires both hooks to have delivered");
+        CheckConnection(check);
+    }
+    static void CheckConnection(Action<bool,string> check)
+    {
+        var temp=Directory.CreateTempSubdirectory("floatnotify-connection-");
+        try{
+            string dir=temp.FullName,exe=Path.Combine(dir,"FloatNotify.exe"),file=Path.Combine(dir,"hooks.json");
+            string config=Path.Combine(dir,"config.toml"),command=$"& '{exe}' --hook";
+            var group=new{hooks=new[]{new{type="command",commandWindows=command}}};
+            void Configure(int timeout,bool approval=true){
+                var events=new Dictionary<string,object>{["Stop"]=new[]{new{hooks=new[]{new{type="command",commandWindows=command,timeout}}}}};
+                if(approval)events["PermissionRequest"]=new[]{group};
+                File.WriteAllText(file,JsonSerializer.Serialize(new{hooks=events}));
+            }
+            string trust=$"[hooks.state.'{file}:stop:0:0']\ntrusted_hash='sha256:{new string('a',64)}'\n"+
+                $"[hooks.state.'{file}:permission_request:0:0']\ntrusted_hash='sha256:{new string('b',64)}'\n";
+            Configure(5);
+            File.WriteAllText(config,trust);
+            ConnectionVerification ledger=new(dir,dir);
+            ConnectionState State(ConnectionVerification.Signal? signal=null,bool listening=true)=>ledger.Update(
+                DiagnosticReport.InspectHook(dir,exe,"PermissionRequest"),DiagnosticReport.InspectHook(dir,exe,"Stop"),listening,signal);
+            foreach(var kind in new[]{Kind.Permission,Kind.Question,Kind.Done})
+                check(ConnectionVerification.FromNotice(new(kind,Guid.Empty,"demo",Source:"preview"))==null,"trial excluded: "+kind);
+            check(ConnectionVerification.FromNotice(new(Kind.Permission,Guid.NewGuid(),"r",Source:"desktop"))==null,"fallback approval cannot verify PermissionRequest");
+            State(ConnectionVerification.Signal.Approval);
+            State(ConnectionVerification.Signal.Question);
+            check(State(ConnectionVerification.Signal.Completion).Detail.Contains("等待真实 Stop"),"completion fallback alone cannot prove Stop delivery");
+            check(State(ConnectionVerification.Signal.Stop).Kind=="on","all three actual event routes verified");
+            ledger=new(dir,dir);
+            File.AppendAllText(config,"[unrelated]\nvalue=3\n");
+            File.WriteAllText(file,JsonSerializer.Serialize(JsonDocument.Parse(File.ReadAllText(file)).RootElement,new JsonSerializerOptions{WriteIndented=true}));
+            check(State().Kind=="on","stored receipts survive reload and unrelated file edits");
+            check(State(listening:false).Kind!="on" && State().Kind=="on","listener readiness is independent of durable question evidence");
+            Configure(5,false);
+            check(State().Label=="部分配置" && State().Detail.Contains("审批 · 未注册"),"missing approval registration overrides its proof");
+            ledger=new(dir,dir);
+            Configure(5);
+            check(State().Detail.Contains("审批 · 上次检查：未注册，等待真实提醒") && State().Detail.Contains("完成 · 已验证"),"restored approval waits while completion stays verified");
+            check(State(ConnectionVerification.Signal.Approval).Kind=="on","restored approval reverified");
+            Configure(8);
+            check(State().Detail.Contains("完成 · Hook 定义或信任记录已变化") && State().Detail.Contains("问答 · 已验证"),"only the changed Stop contract expires");
+            State(ConnectionVerification.Signal.Stop);
+            check(State(ConnectionVerification.Signal.Completion).Kind=="on","new Stop and reminder reverify completion");
+            File.AppendAllText(config,"[features]\nhooks=false\n");
+            check(State().Label=="待配置" && State().Detail.Contains("问答 · 已验证"),"global hook disable leaves question evidence intact");
+            File.WriteAllText(config,trust+"enabled=false\n");
+            check(State().Detail.Contains("审批 · 条目已停用"),"individual disable reported");
+            File.WriteAllText(config,trust);
+            State(ConnectionVerification.Signal.Approval);
+            State(ConnectionVerification.Signal.Stop);
+            State(ConnectionVerification.Signal.Completion);
+            string proof=Path.Combine(dir,"connection.json");
+            File.WriteAllText(proof,File.ReadAllText(proof).Replace("desktop-question/1","desktop-question/0"));
+            ledger=new(dir,dir);
+            check(State().Kind!="on" && State().Detail.Contains("审批 · 已验证") && State().Detail.Contains("完成 · 已验证"),"question handler revision expires only the question");
+            check(State(ConnectionVerification.Signal.Question).Kind=="on","updated question handler reverified");
+            var incomplete=System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(proof))!;
+            incomplete["question"]!["signature"]=null;
+            File.WriteAllText(proof,incomplete.ToJsonString());
+            ledger=new(dir,dir);
+            check(State().Detail.Contains("问答 · 旧记录缺少对应的接入定义"),"an unbound timestamp cannot verify a capability");
+        }finally{temp.Delete(true);}
     }
     static void CheckOfficialApprovals(Action<bool,string> check)
     {
