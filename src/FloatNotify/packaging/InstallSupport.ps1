@@ -130,7 +130,20 @@ try {
             [IO.File]::Copy($from,$to,$true)
             if($files.Contains($rel) -and (File-Digest $to) -ne $files[$rel]){throw "Copy failed: $rel"}
         }
-        if($Connect){& (Join-Path $dest 'Register.ps1') -ConfigDirectory $HookDirectory -IfAvailable}
+        if($Connect){
+            $disabled=$false
+            $settings=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'FloatNotify\settings.json'
+            if(($owned -or $adopt) -and [IO.File]::Exists($settings)){
+                try{
+                    $preferences=ConvertFrom-Json -InputObject ([IO.File]::ReadAllText($settings))
+                    $disabled=($preferences.codex -is [bool] -and !$preferences.codex)
+                }catch{
+                    # A damaged settings file cannot tell us the user's choice. Keep the existing hooks.
+                    $Connect=$false
+                }
+            }
+            if($Connect){& (Join-Path $dest 'Register.ps1') -ConfigDirectory $HookDirectory -IfAvailable -Remove:$disabled}
+        }
     }catch{
         $original=$_
         foreach($rel in $copied){

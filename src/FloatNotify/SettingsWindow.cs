@@ -129,7 +129,7 @@ internal sealed class SettingsWindow : Form
                         finally{copyingDiagnostics=false;}
                         return;
                     }
-                    resident.SettingsCommand(root);RefreshState();
+                    await resident.SettingsCommandAsync(root);RefreshState();
                 }catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException or JsonException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.ExternalException){
                     Send(new{error=ex.Message});RefreshState();
                 }

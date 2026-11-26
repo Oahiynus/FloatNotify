@@ -26,6 +26,8 @@ internal static class LocalData
 internal sealed record Preferences
 {
     public bool Codex {get;init;}=true;
+    [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public bool? PendingCodex {get;init;}
     public bool Approval {get;init;}=true;
     public bool Question {get;init;}=true;
     public bool Done {get;init;}=true;

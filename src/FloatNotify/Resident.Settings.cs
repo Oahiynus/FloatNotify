@@ -16,11 +16,15 @@ internal sealed partial class Resident
     int publishedRevision=-1;
     readonly ConnectionVerification verification=new(MonitorFiles.Home,Audit.Folder);
     ConnectionState? connection;
+    bool? changingCodex,retryCodex;
+    string connectionError="";
     DateTime nextConnectionCheck;
     (DateTime Hooks,DateTime Config)? lastFiles;
     DiagnosticReport.Hook? stopHook,approvalHook;
     bool RefreshConnection(ConnectionVerification.Signal? signal=null)
     {
+        // An intentional disconnect suspends verification. Compare the restored definitions on reconnect.
+        if(!prefs.Codex || changingCodex!=null)return false;
         if(signal==null && DateTime.UtcNow<nextConnectionCheck)return false;
         nextConnectionCheck=DateTime.UtcNow.AddSeconds(3);
         string home=MonitorFiles.Home,exe=Path.Combine(About.InstallDir,"FloatNotify.exe");
@@ -118,7 +122,7 @@ internal sealed partial class Resident
             折叠在更多提醒中：{queued.Length} 张
 
             【三类提醒的接入验证】
-            {connection?.Detail}
+            {ConnectionView()?.Detail}
 
             【Codex Hooks】
             {hooks}
@@ -140,20 +144,79 @@ internal sealed partial class Resident
             日志文件：{Path.Combine(About.LogDir,"events.log")}
             """.ReplaceLineEndings(Environment.NewLine);
     }
+    ConnectionState? ConnectionView()
+    {
+        if(changingCodex is bool enabling){
+            string label=enabling?"正在连接":"正在断开";
+            return new("idle",label,label+" Codex…",label+" Codex…");
+        }
+        if(retryCodex is bool retry)return new("idle",retry?"连接失败":"断开失败",connectionError,connectionError);
+        return prefs.Codex?connection:new("paused","未开启","Codex 提醒已关闭，已暂停验证。","");
+    }
     public object SettingsSnapshot()
     {
         RefreshConnection();
         workspaces.Refresh();
         publishedRevision=history.Revision;
         return new {
-            about=About,connection,
+            about=About,connection=ConnectionView(),changingCodex=changingCodex!=null,retryCodex,
             opts=new {prefs.Codex,prefs.Approval,prefs.Question,prefs.Done,prefs.History,start=Preferences.StartEnabled()},
             visible=prefs.Visible, material=material.ToString(),events=history.Rows.Select(ViewRow).ToArray(),revision=history.Revision,trial=TrialInProgress
         };
     }
     static bool Bool(JsonElement msg)=>msg.GetProperty("value").ValueKind switch{JsonValueKind.True=>true,JsonValueKind.False=>false,_=>throw new ArgumentException("无效的设置值。")};
     void Save(Preferences next){LocalData.Write("settings",next);prefs=next;}
-    public void SettingsCommand(JsonElement msg)
+    internal static async Task SetHooksAsync(string installDir,string home,bool enabled)
+    {
+        string script=Path.Combine(installDir,"Register.ps1");
+        if(!File.Exists(script))throw new FileNotFoundException("安装目录缺少 Register.ps1，请重新安装浮笺。");
+        var info=new ProcessStartInfo(Path.Combine(Environment.SystemDirectory,@"WindowsPowerShell\v1.0\powershell.exe")){
+            UseShellExecute=false,CreateNoWindow=true,RedirectStandardError=true,StandardErrorEncoding=System.Text.Encoding.UTF8
+        };
+        foreach(string arg in new[]{"-NoLogo","-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass","-File",script,"-ForSettings","-ConfigDirectory",home})
+            info.ArgumentList.Add(arg);
+        if(!enabled)info.ArgumentList.Add("-Remove");
+        using var process=Process.Start(info)??throw new InvalidOperationException("无法启动 Codex 连接脚本。");
+        string error=(await process.StandardError.ReadToEndAsync().ConfigureAwait(false)).Trim();
+        await process.WaitForExitAsync().ConfigureAwait(false);
+        if(process.ExitCode!=0)throw new InvalidOperationException(error.Length==0?"请检查 Codex 配置目录后重试。":error);
+    }
+
+    async Task ChangeCodexAsync(bool enabled)
+    {
+        if(changingCodex!=null)return;
+        changingCodex=enabled;
+        retryCodex=null;
+        bool applied=false;
+        try{
+            // Persist intent first. An interrupted two-file change resumes on the next launch.
+            if(enabled!=prefs.Codex && prefs.PendingCodex!=enabled)Save(prefs with{PendingCodex=enabled});
+            settings?.RefreshState();
+            await SetHooksAsync(About.InstallDir,MonitorFiles.Home,enabled);
+            applied=true;
+            prefs=prefs with{Codex=enabled};
+            if(!enabled)DismissDisabledRequests();
+            if(prefs.PendingCodex!=null)Save(prefs with{PendingCodex=null});
+        }catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception){
+            retryCodex=enabled;
+            connectionError=(applied?"Hook 已更新，保存开关状态失败。":"无法更新浮笺的 Codex Hook。")+ex.Message;
+            Audit.Write("codex-connection-change-failed enabled="+enabled+" error="+ex.GetType().Name);
+            if(!applied && prefs.PendingCodex!=null){
+                try{Save(prefs with{PendingCodex=null});}
+                catch(Exception write) when(write is IOException or UnauthorizedAccessException){connectionError+=" 下次启动会重试。";}
+            }
+        }finally{
+            changingCodex=null;lastFiles=null;nextConnectionCheck=DateTime.MinValue;
+            if(!shuttingDown)settings?.RefreshState();
+        }
+    }
+    void DismissDisabledRequests()
+    {
+        if(!prefs.Accept(Kind.Permission))foreach(var approval in officialEntries.Keys)approval.Respond("pass");
+        RemoveCards(e=>e.Notice.Source!="preview"&&!prefs.Accept(e.Notice.Kind));
+        activeRequests.RemoveWhere(e=>!prefs.Accept(e.Notice.Kind));
+    }
+    public async Task SettingsCommandAsync(JsonElement msg)
     {
         string key=msg.Str("key");
         switch(msg.Str("action")){
@@ -165,14 +228,11 @@ internal sealed partial class Resident
             case "toggle":{
                 bool value=Bool(msg);
                 if(key=="start"){Preferences.SetStartup(value);break;}
+                if(key=="codex"){await ChangeCodexAsync(value);break;}
                 Save(key switch{
-                    "codex"=>prefs with{Codex=value},"approval"=>prefs with{Approval=value},"question"=>prefs with{Question=value},
+                    "approval"=>prefs with{Approval=value},"question"=>prefs with{Question=value},
                     "done"=>prefs with{Done=value},"history"=>prefs with{History=value},_=>throw new ArgumentException("未知设置。")});
-                if(!value && key!="history"){
-                    if(!prefs.Accept(Kind.Permission))foreach(var approval in officialEntries.Keys)approval.Respond("pass");
-                    RemoveCards(e=>e.Notice.Source!="preview"&&!prefs.Accept(e.Notice.Kind));
-                    activeRequests.RemoveWhere(e=>!prefs.Accept(e.Notice.Kind));
-                }
+                if(!value && key!="history")DismissDisabledRequests();
                 break;
             }
             case "material":{

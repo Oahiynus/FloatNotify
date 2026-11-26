@@ -135,7 +135,20 @@ aside { top:12px; height:calc(100vh - 24px); margin:12px 0 12px 12px; padding:18
 .avatar,.harnessIcon,.entrySource{display:inline-grid;place-items:center;flex:none}.avatar{width:25px;height:25px;--extent:20px}.harnessIcon{width:35px;height:35px;--extent:24px}.entrySource{width:35px;height:35px;--extent:25px;border:1px solid #e2e6ed;border-radius:10px;background:#fafbfd}
 [data-brand] img{width:calc(var(--extent) * var(--optical,1));height:calc(var(--extent) * var(--optical,1));object-fit:contain;max-width:none;transform:none}
 [data-brand=codex]{--optical:1.08}[data-brand=claude]{--optical:.92}[data-brand=deepseek]{--optical:1.03}[data-brand=gemini]{--optical:1.34}[data-brand=codex] img{transform:none}
-.connectionState{display:flex;align-items:center;gap:10px;padding:13px 17px}.connectionState strong{font-size:14px}.connectionState p{white-space:pre-line;margin:3px 0 0;color:var(--muted);font-size:12px}.connectionState .dot{margin:0;background:#48765b}.connectionState .dot.off{background:#9a9fa7}
+.clientHead,.clientTitle,.connectionBadge,.connectionState{display:flex;align-items:center}
+.clientHead{gap:15px;margin-bottom:22px}
+.clientTitle{min-width:0;gap:10px;flex-wrap:wrap}
+.clientHead h1{font-size:clamp(23px,3vw,30px);margin:0}
+.clientNav .avatar,.clientIcon{display:inline-grid;place-items:center;flex:none;background:#fff;border:1px solid #dfe3e9;box-shadow:0 1px 2px #2029380a}
+.clientNav .avatar{width:28px;height:28px;border-radius:8px;--extent:19px}
+.clientIcon{width:54px;height:54px;border-radius:15px;--extent:33px}
+.connectionBadge{gap:6px;border-radius:999px;background:#e9ecf0;color:#485461;font-size:12px;font-weight:600;padding:3px 9px;white-space:nowrap}
+.connectionBadge[data-status=on]{background:#e2f3ea;color:#136f50}
+.connectionBadge .dot{margin:0;width:7px;height:7px;box-shadow:none}
+.connectionState{gap:13px;padding:15px 17px;font-size:13px;line-height:1.55}
+.connectionState p{flex:1;margin:0}
+.reminderHint{padding:12px 17px;color:var(--muted);font-size:13px;border-bottom:1px solid var(--hairline)}
+@media(max-width:760px){.clientHead{margin-bottom:16px}.clientIcon{width:44px;height:44px;--extent:28px}.clientNav .avatar{width:24px;height:24px;--extent:16px}.clientTitle{gap:7px}.row:has(.switch){flex-wrap:nowrap}}
 @media(max-width:760px){.event summary{grid-template-columns:31px minmax(0,1fr) auto;gap:8px}.entrySource{width:30px;height:30px;--extent:22px}.detail{margin-left:13px}.eventRight{gap:4px}}
 
 :root {

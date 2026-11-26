@@ -3,7 +3,7 @@ using static FloatNotify.DiagnosticReport;
 
 namespace FloatNotify;
 
-internal sealed record ConnectionState(string Kind,string Label,string Detail);
+internal sealed record ConnectionState(string Kind,string Label,string Detail,string Summary);
 
 internal sealed class ConnectionVerification(string home,string folder)
 {
@@ -60,10 +60,25 @@ internal sealed class ConnectionVerification(string home,string folder)
             string label=approval.Ready==false && stop.Ready==false?"待配置":
                 approval.Ready==false || stop.Ready==false?"部分配置":
                 approval.Ready==null || stop.Ready==null?"配置未核实":
-                count==3?"已接入":count>0?"部分已验证":"待验证";
-            return new(count==3?"on":"idle",label,detail);
+                count==3?"已连接":count>0?"部分已验证":"待验证";
+            string summary;
+            if(approval.Ready!=true || stop.Ready!=true){
+                var issues=new List<string>();
+                if(approval.Ready!=true)issues.Add("审批 Hook："+approval.Text);
+                if(stop.Ready!=true)issues.Add("完成 Hook："+stop.Text);
+                summary=string.Join("。",issues)+"。";
+            }else if(!listening)summary="正在等待 Codex 的会话或桌面日志监听就绪。";
+            else if(count==3)summary="Codex 已连接。已开启的审批、问答和完成提醒会显示为浮笺卡片。";
+            else{
+                var waiting=new List<string>();
+                if(!verified(next.Approval,approval))waiting.Add("审批");
+                if(!verified(next.Question,question))waiting.Add("问答");
+                if(!verified(next.Done,stop,true))waiting.Add("完成");
+                summary="已配置 Codex 连接，正在等待"+string.Join("、",waiting)+"的真实事件完成验证。";
+            }
+            return new(count==3?"on":"idle",label,detail,summary);
         }catch(Exception ex) when(ex is IOException or UnauthorizedAccessException){
-            return new("idle","验证记录不可用","无法读写本地接入记录 connection.json（"+ex.GetType().Name+"）");
+            return new("idle","验证记录不可用","无法读写本地接入记录 connection.json（"+ex.GetType().Name+"）","无法读取或保存验证记录，请查看通用设置中的诊断信息。");
         }
     }
 

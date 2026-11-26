@@ -86,6 +86,7 @@ internal static class Checks
         Ok(ForegroundChat.Match(chat,null,titles)==CompletionView.Unknown && ForegroundChat.Match(chat,"未知标题",titles)==CompletionView.Unknown,"unavailable and unindexed titles leave the task unresolved");
         titles[chat]="ChatGPT";
         Ok(ForegroundChat.Match(chat,"ChatGPT",titles)==CompletionView.Unknown,"generic activity and home titles leave the task unresolved");
+        CheckHookSwitch(Ok);
         CheckOfficialApprovals(Ok);
         CheckRoutes(Ok);
         CheckFileDelivery(Ok);
@@ -186,6 +187,44 @@ internal static class Checks
             File.WriteAllText(proof,incomplete.ToJsonString());
             ledger=new(dir,dir);
             check(State().Detail.Contains("问答 · 旧记录缺少对应的接入定义"),"an unbound timestamp cannot verify a capability");
+        }finally{temp.Delete(true);}
+    }
+    static void CheckHookSwitch(Action<bool,string> check)
+    {
+        var temp=Directory.CreateTempSubdirectory("floatnotify-switch-");
+        try{
+            string app=temp.CreateSubdirectory("App's Folder").FullName,home=temp.CreateSubdirectory("Codex").FullName;
+            File.Copy(Path.Combine(AppContext.BaseDirectory,"Register.ps1"),Path.Combine(app,"Register.ps1"));
+            File.WriteAllText(Path.Combine(app,"FloatNotify.exe"),"");
+            string config=Path.Combine(home,"hooks.json"),trust=Path.Combine(home,"config.toml");
+            string ours="& '"+Path.Combine(app,"FloatNotify.exe").Replace("'","''")+"' --hook";
+            var own=new{type="command",command=ours};
+            var other=new{type="command",command="other-client"};
+            object Group(object entry)=>new{hooks=new[]{entry}};
+            File.WriteAllText(config,JsonSerializer.Serialize(new{hooks=new{Stop=new[]{Group(own),Group(other)},PermissionRequest=new[]{Group(other),Group(own)},SessionStart=new[]{Group(other)}}}));
+            File.WriteAllText(trust,"# existing trust stays with Codex");
+            void Toggle(bool enable)=>Resident.SetHooksAsync(app,home,enable).GetAwaiter().GetResult();
+            JsonElement Groups(string name)=>JsonSerializer.Deserialize<JsonElement>(File.ReadAllText(config)).GetProperty("hooks").GetProperty(name);
+            int Count(string name,string command)=>Groups(name).EnumerateArray().SelectMany(g=>g.GetProperty("hooks").EnumerateArray()).Count(e=>e.Str("command")==command);
+            Toggle(false);
+            check(Count("Stop",ours)==0 && Count("PermissionRequest",ours)==0,"disconnect removes both local callbacks");
+            check(Groups("Stop")[1].GetProperty("hooks")[0].Str("command")=="other-client" && Count("PermissionRequest","other-client")==1 && Count("SessionStart","other-client")==1,"disconnect preserves other clients and their group positions");
+            string off=File.ReadAllText(config);Toggle(false);
+            check(File.ReadAllText(config)==off,"repeated disconnect leaves the file untouched");
+            Toggle(true);
+            check(Count("Stop",ours)==1 && Count("PermissionRequest",ours)==1 && Groups("Stop")[0].GetProperty("hooks")[0].Str("commandWindows")==ours,"reconnect restores both exact commands, including quoted paths");
+            string on=File.ReadAllText(config);Toggle(true);
+            check(File.ReadAllText(config)==on && File.ReadAllText(trust)=="# existing trust stays with Codex","repeated connect preserves configuration and trust");
+            string otherInstall="& 'C:\\Other\\FloatNotify.exe' --hook";
+            string conflict=JsonSerializer.Serialize(new{hooks=new{Stop=new[]{Group(new{type="command",command=otherInstall})}}});
+            File.WriteAllText(config,conflict);
+            bool conflictRejected=false;
+            try{Toggle(true);}catch(InvalidOperationException){conflictRejected=true;}
+            check(conflictRejected && File.ReadAllText(config)==conflict,"another installation's legacy command is preserved");
+            File.WriteAllText(config,"{broken");
+            bool rejected=false;
+            try{Toggle(false);}catch(InvalidOperationException){rejected=true;}
+            check(rejected && File.ReadAllText(config)=="{broken","registration error leaves the original file in place");
         }finally{temp.Delete(true);}
     }
     static void CheckOfficialApprovals(Action<bool,string> check)

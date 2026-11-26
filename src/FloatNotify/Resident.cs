@@ -82,6 +82,7 @@ internal sealed partial class Resident : ApplicationContext
         pulse.Tick+=(_,_)=>Tick();pulse.Start();
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged+=DisplaysChanged;
         Audit.Write("resident-start");
+        if(prefs.PendingCodex!=null || !prefs.Codex)Post(()=>_ = ChangeCodexAsync(prefs.PendingCodex??false));
     }
     void Post(Action action){try{if(!shuttingDown)dispatcher.BeginInvoke(action);}catch(InvalidOperationException){}}
     async Task Listen()

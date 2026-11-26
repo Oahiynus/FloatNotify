@@ -1,12 +1,16 @@
 ﻿# Windows PowerShell 5.1 and PowerShell 7. Registers this installation's Stop and interactive PermissionRequest hooks.
 [CmdletBinding()]
-param([switch]$Remove, [string]$ConfigDirectory, [switch]$IfAvailable, [switch]$ShowResult, [string]$ApplicationPath)
+param([switch]$Remove, [string]$ConfigDirectory, [switch]$IfAvailable, [switch]$ShowResult, [string]$ApplicationPath, [switch]$ForSettings)
 $ErrorActionPreference='Stop'
 function Show-Result([string]$message){
     if($ShowResult){Add-Type -AssemblyName System.Windows.Forms
         $null=[Windows.Forms.MessageBox]::Show($message,'浮笺')}
 }
-trap {Show-Result $_.Exception.Message;throw $_}
+if($ForSettings){[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)}
+trap {
+    if($ForSettings){[Console]::Error.WriteLine($_.Exception.Message);exit 1}
+    Show-Result $_.Exception.Message;throw $_
+}
 $legacy=$PSVersionTable.PSVersion.Major -lt 6
 if($legacy){
     Add-Type -AssemblyName System.Web.Extensions
@@ -38,16 +42,17 @@ try {
         if($legacy){$cfg=$serializer.DeserializeObject($before)}
         else{$cfg=ConvertFrom-Json -InputObject $before -AsHashtable}
     }
-    if($cfg -isnot [Collections.IDictionary]){throw 'Invalid hooks.json root; original preserved.'}
+    if($cfg -isnot [Collections.IDictionary]){throw 'hooks.json 的根节点格式有误，请检查后重试。'}
     if(-not $cfg.ContainsKey('hooks')){if($Remove){return};$cfg['hooks']=@{}}
-    if($cfg['hooks'] -isnot [Collections.IDictionary]){throw 'Invalid hooks container; original preserved.'}
+    if($cfg['hooks'] -isnot [Collections.IDictionary]){throw 'hooks.json 中的 hooks 格式有误，请检查后重试。'}
     # Two independent installations answering the same permission hook would race.
     if(!$Remove){
         foreach($eventName in 'Stop','PermissionRequest'){
             foreach($group in $cfg['hooks'][$eventName]){
                 foreach($item in $group.hooks){
-                    $existing=[string]$item.commandWindows
-                    if($existing -and $item.command -ieq $existing -and $existing -ine $command -and
+                    $existing=if($item.commandWindows){$item.commandWindows}else{$item.command}
+                    $existing=([string]$existing).Trim()
+                    if($item.type -eq 'command' -and $existing -ine $command -and
                        $existing -match "^& '.+[\\/]FloatNotify\.exe' --hook$"){
                         if($IfAvailable){Write-Output 'FLOATNOTIFY_OTHER_INSTALLATION';return}
                         throw 'Codex 已接入另一安装位置的浮笺。要切换位置，请先使用原安装的卸载或移除 Hook 功能。'
@@ -61,17 +66,22 @@ try {
         $groups=@($cfg['hooks'][$eventName] | Where-Object {$null -ne $_})
         $matched=$false
         $list=[Collections.Generic.List[object]]::new()
-        foreach($group in $groups){
+        $vacant=$null
+        for($index=0;$index -lt $groups.Count;$index++){
+            $group=$groups[$index]
+            if($null -eq $vacant -and $group.Count -eq 1 -and $group.ContainsKey('hooks') -and @($group.hooks).Count -eq 0){$vacant=$group}
             $kept=[Collections.Generic.List[object]]::new()
             $removed=$false
             foreach($entry in $group.hooks){
-                if($entry.command -ieq $command -and $entry.commandWindows -ieq $command){
+                $effective=if($entry.commandWindows){$entry.commandWindows}else{$entry.command}
+                if($entry.type -eq 'command' -and ([string]$effective).Trim() -ieq $command){
                     $matched=$true
                     if($Remove){$removed=$true;$changed=$true;continue}
                 }
                 $kept.Add($entry)
             }
-            if(-not $removed -or $kept.Count){
+            # Later groups have index-based trust records. Keep their positions when disconnecting.
+            if(-not $removed -or $kept.Count -or $index -lt $groups.Count-1){
                 if($removed){$group['hooks']=$kept.ToArray()}
                 $list.Add($group)
             }
@@ -80,7 +90,8 @@ try {
             $entry=@{type='command';command=$command;commandWindows=$command}
             if($eventName -eq 'Stop'){$entry.async=$true;$entry.timeout=5;$entry.statusMessage='浮笺提醒'}
             else{$entry.timeout=120;$entry.statusMessage='等待浮笺中的人工审批'}
-            $list.Add(@{hooks=@($entry)});$changed=$true
+            if($null -ne $vacant){$vacant['hooks']=@($entry)}else{$list.Add(@{hooks=@($entry)})}
+            $changed=$true
         }
         if($Remove -and -not $matched){continue}
         if($list.Count){$cfg['hooks'][$eventName]=$list.ToArray()}else{$null=$cfg['hooks'].Remove($eventName)}

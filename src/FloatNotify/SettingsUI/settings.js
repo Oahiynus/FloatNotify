@@ -34,7 +34,7 @@ const pages={general:'通用设置',recent:'最近提醒',appearance:'弹窗外�
 const sel=(val,active)=>val===active?'true':'false';
 function connection(id) {
  if(!clients[id].ready) return {kind:'idle',label:'待适配'};
- return state.opts.codex ? (state.connection??{kind:'idle',label:'正在核实'}) : {kind:'paused',label:'已暂停',detail:'提醒已暂停。重新启用即可继续接收新事件。'};
+ return state.connection??{kind:'idle',label:'正在核实'};
 }
 function statusDot(status) {
  return '<span aria-hidden="true" class="dot" data-status="'+status.kind+'"></span>';
@@ -76,15 +76,21 @@ function general(){
  '<div class="sectionhead harnessHeader"><h2>客户端</h2><small>显示在侧栏</small></div><div class="surface">'+harnesses+'</div>'+aboutSection();
 }
 function client(id){
- const c=clients[id],status=connection(id),enabled=state.opts.codex;
- const description=status.detail??(c.ready?'正在读取接入状态。':'完成适配后，可在这里管理该客户端的提醒。');
- const host=id==='claude'?'桌面应用为 Claude，Code 标签页运行 Claude Code。':id==='codex'?'管理 ChatGPT 桌面应用中的 Codex 提醒。':'管理此 Harness 的桌面提醒。';
- const statusBlock=section('接入状态')+'<div class="surface connectionState">'+statusDot(status)+'<div><strong>'+status.label+'</strong><p>'+description+'</p></div></div>';
- let content=head(c.full,host);
- if(c.ready){content+='<div class="surface">'+row('启用 Codex 提醒','控制本工具是否接收这个客户端的新提醒。',toggle('codex','启用 Codex 提醒'))+'</div>';}
- content+=statusBlock;
- if(c.ready){content+=section('提醒类型')+'<div class="surface">'+row('请求审批','收到人工审批请求时显示中央审批卡。',toggle('approval','请求审批',!enabled))+row('需要你的回答','等待选择或输入时显示中央问答卡。',toggle('question','需要你的回答',!enabled))+row('回复已完成','每轮完成后显示带对话名的完成卡。',toggle('done','回复已完成',!enabled))+'</div>';}
- return content;
+ const c=clients[id],status=connection(id);
+ const badge='<span class="connectionBadge" data-status="'+status.kind+'">'+statusDot(status)+escapeHtml(status.label)+'</span>';
+ let content='<header class="clientHead">'+harnessBadge(id,'clientIcon')+'<div class="clientTitle"><h1>'+c.full+'</h1>'+badge+'</div></header>';
+ if(!c.ready)return content+section('连接状态')+'<div class="surface connectionState">浮笺暂未适配 '+c.full+'。</div>';
+ content+='<div class="surface">'+row('启用 Codex 提醒','开启时，浮笺会在 Codex 中添加审批和完成 Hook，并监听提问。关闭时会移除本机浮笺的两个 Hook。',toggle('codex','启用 Codex 提醒',state.changingCodex))+'</div>';
+ if(state.opts.codex || state.retryCodex!=null){
+   const retry=state.retryCodex!=null?button('retryCodex','重试'):'';
+   content+=section('连接状态')+'<div class="surface connectionState">'+statusDot(status)+'<p>'+escapeHtml(status.summary)+'</p>'+retry+'</div>';
+ }
+ const disabled=!state.opts.codex || state.changingCodex;
+ const hint=state.opts.codex?'':'<p class="reminderHint">开启 Codex 提醒后，即可选择要显示的浮笺卡片。</p>';
+ return content+section('提醒类型')+'<div class="surface">'+hint+
+   row('请求审批','在浮笺卡片上允许或拒绝工具请求。关闭后，可在 Codex 中处理审批。',toggle('approval','请求审批',disabled))+
+   row('需要你的回答','Codex 等待你选择或输入时，显示问答卡片。',toggle('question','需要你的回答',disabled))+
+   row('回复已完成','每轮回复完成时，显示带有对话名称的完成卡片。',toggle('done','回复已完成',disabled))+'</div>';
 }
 
 const bridge=window.chrome.webview;
@@ -170,10 +176,10 @@ bridge.addEventListener('message',({data})=>{
  if(data.error){const b=$('[data-act=trial]');if(b)b.disabled=false;feedback(data.error);return;}
  if(data.copied==='application'){feedback('已复制浮笺的应用诊断信息');return;}
  if(data.copied){const note=$('[data-record="'+data.copied+'"] .copyStatus');if(note)note.textContent='已复制这条提醒';return;}
- const configChanged=JSON.stringify(state.opts)!==JSON.stringify(data.opts)||JSON.stringify(state.visible)!==JSON.stringify(data.visible)||JSON.stringify(state.connection)!==JSON.stringify(data.connection);
+ const configChanged=JSON.stringify(state.opts)!==JSON.stringify(data.opts)||JSON.stringify(state.visible)!==JSON.stringify(data.visible)||JSON.stringify(state.connection)!==JSON.stringify(data.connection)||state.changingCodex!==data.changingCodex||state.retryCodex!==data.retryCodex;
  const historyChanged=state.revision!==data.revision;
  trialActive=!!data.trial;
- state.about=data.about;state.connection=data.connection;
+ state.about=data.about;state.connection=data.connection;state.changingCodex=data.changingCodex;state.retryCodex=data.retryCodex;
  state.opts=data.opts;state.visible=data.visible;state.events=data.events;state.revision=data.revision;
  state.mat=data.material==='Frosted'?'soft':'rim';
  if(state.mat==='rim')state.renderer=data.material==='LiquidSystem'?'system':'pixels';
@@ -207,6 +213,7 @@ document.addEventListener('click',e=>{
    send('material',mat==='soft'?'Frosted':renderer==='system'?'LiquidSystem':'Liquid');return;
  }
  switch(d.act){
+   case 'retryCodex':send('toggle','codex',state.retryCodex);break;
    case 'copyDiagnostics':feedback('正在读取 Codex 的 Hook 状态…');send(d.act);break;
    case 'openLogs':send(d.act);break;
    case 'clear':$('#confirm').showModal();break;
