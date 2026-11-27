@@ -497,6 +497,9 @@ internal static class Checks
         bool Visible(System.Windows.UIElement c)=>c.Visibility==System.Windows.Visibility.Visible;
         check(GlassPreference.Parse("clear")==GlassMaterial.Liquid && GlassPreference.Parse("adaptive")==GlassMaterial.Adaptive &&
             GlassPreference.Parse("tonal-liquid")==GlassMaterial.TonalLiquid,"retired preference uses liquid and the two adaptive choices stay distinct");
+        done.ApplyMaterial(GlassMaterial.SoftFocus);
+        check(GlassPreference.Parse("soft-focus")==GlassMaterial.SoftFocus && done.Hud.Effect==null &&
+            DiagnosticReport.MaterialName("SoftFocus").Contains("柔映液态玻璃"),"soft focus keeps an independent preference and daylight ink");
         done.ApplyMaterial(GlassMaterial.TextRelief);
         check(GlassPreference.Parse("text-relief")==GlassMaterial.TextRelief && done.Hud.Effect==null &&
             DiagnosticReport.MaterialName("TextRelief").Contains("轻映液态玻璃"),"text relief is independent and starts with original daylight ink");

@@ -36,30 +36,32 @@ internal sealed class LiquidLens : IDisposable
         }
         if(layoutDirty){
             var shapes=new List<Zone>();
-            Collect(hud?card.Hud:card.DialogFace,face,new Rect(0,0,face.ActualWidth,face.ActualHeight),shapes,card,material==GlassMaterial.TextRelief,false);
+            Collect(hud?card.Hud:card.DialogFace,face,new Rect(0,0,face.ActualWidth,face.ActualHeight),shapes,card,material,false);
             zones=shapes.ToArray();layoutDirty=false;
         }
         var origin=face.PointToScreen(new Point());
         int changed=LiquidFrame(lens,(int)Math.Round(origin.X),(int)Math.Round(origin.Y),width,height,(float)dpi.DpiScaleX,
-            (hud?1:0) | (material switch {GlassMaterial.Adaptive=>4,GlassMaterial.TonalLiquid=>8,GlassMaterial.Lustre=>16,GlassMaterial.TextRelief=>32,_=>0}),zones,zones.Length,out var pixels,out int w,out int h);
+            (hud?1:0) | (material switch {GlassMaterial.Adaptive=>4,GlassMaterial.TonalLiquid=>8,GlassMaterial.Lustre=>16,GlassMaterial.TextRelief=>32,GlassMaterial.SoftFocus=>64,_=>0}),zones,zones.Length,out var pixels,out int w,out int h);
         if(changed<=0)return changed;
         if(image==null || image.PixelWidth!=w || image.PixelHeight!=h){
             image=new WriteableBitmap(w,h,96,96,PixelFormat.Bgra32,null);
             Brush=new ImageBrush(image){Stretch=Stretch.Fill};
         }
         image.WritePixels(new Int32Rect(0,0,w,h),pixels,checked(w*h*4),w*4);
-        if(material is GlassMaterial.Adaptive or GlassMaterial.TonalLiquid or GlassMaterial.Lustre or GlassMaterial.TextRelief){
+        if(material is GlassMaterial.Adaptive or GlassMaterial.TonalLiquid or GlassMaterial.Lustre or GlassMaterial.TextRelief or GlassMaterial.SoftFocus){
             var mask=LiquidInkMask(lens,out int mw,out int mh);
             if(mask==IntPtr.Zero){InkMask=null;inkMask=null;return 1;}
-            if(inkMask==null || inkMask.PixelWidth!=mw || inkMask.PixelHeight!=mh){
-                inkMask=new WriteableBitmap(mw,mh,96,96,PixelFormat.Gray8,null);
+            var format=material==GlassMaterial.SoftFocus?PixelFormat.Bgra32:PixelFormat.Gray8;
+            int stride=mw*(format.BitsPerPixel/8);
+            if(inkMask==null || inkMask.PixelWidth!=mw || inkMask.PixelHeight!=mh || inkMask.Format!=format){
+                inkMask=new WriteableBitmap(mw,mh,96,96,format,null);
                 InkMask=new ImageBrush(inkMask){Stretch=Stretch.Fill};
             }
-            inkMask.WritePixels(new Int32Rect(0,0,mw,mh),mask,checked(mw*mh),mw);
+            inkMask.WritePixels(new Int32Rect(0,0,mw,mh),mask,checked(stride*mh),stride);
         }
         return 1;
     }
-    static void Collect(DependencyObject node,FrameworkElement face,Rect clip,List<Zone> zones,Card card,bool relief,bool option)
+    static void Collect(DependencyObject node,FrameworkElement face,Rect clip,List<Zone> zones,Card card,GlassMaterial material,bool option)
     {
         if(node is FrameworkElement element){
             if(!element.IsVisible || element.ActualWidth<=0 || element.ActualHeight<=0)return;
@@ -71,7 +73,8 @@ internal sealed class LiquidLens : IDisposable
                 if(!area.IsEmpty && area.Width>0 && area.Height>0)zones.Add(new((float)area.Left,(float)area.Top,(float)area.Right,(float)area.Bottom,kind));
             }
             if(element is ScrollContentPresenter)clip.Intersect(box);
-            if(element is RadioButton || element==card.EditorFrame)Add(box,1);
+            if(element is RadioButton radio)Add(box,material==GlassMaterial.SoftFocus && radio.IsChecked==true?4:1);
+            else if(element==card.EditorFrame)Add(box,1);
             if(element==card.ApprovalGroup || element is Button button && button.BorderThickness.Left>0)Add(box,2);
             if(element==card.Editor){
                 box.Inflate(-12,-9);
@@ -80,7 +83,7 @@ internal sealed class LiquidLens : IDisposable
             if(element is TextBlock text && text.Text.Length>0){
                 var end=text.ContentEnd.GetCharacterRect(System.Windows.Documents.LogicalDirection.Backward);
                 var start=text.ContentStart.GetCharacterRect(System.Windows.Documents.LogicalDirection.Forward);
-                if(relief && (option || text==card.Headline || text==card.DoneText)){
+                if((material is GlassMaterial.TextRelief or GlassMaterial.SoftFocus) && (option || text==card.Headline || text==card.DoneText)){
                     // Wrapped option labels can leave most of their last line empty.
                     var line=text.ContentStart;
                     while(line!=null && line.CompareTo(text.ContentEnd)<0){
@@ -102,7 +105,7 @@ internal sealed class LiquidLens : IDisposable
                 box.Inflate(3,3);Add(box,0);
             }
         }
-        for(int i=0;i<VisualTreeHelper.GetChildrenCount(node);++i)Collect(VisualTreeHelper.GetChild(node,i),face,clip,zones,card,relief,option || node is RadioButton);
+        for(int i=0;i<VisualTreeHelper.GetChildrenCount(node);++i)Collect(VisualTreeHelper.GetChild(node,i),face,clip,zones,card,material,option || node is RadioButton);
     }
     public void PauseCapture(){
         if(lens!=IntPtr.Zero){LiquidDestroy(lens);lens=IntPtr.Zero;}

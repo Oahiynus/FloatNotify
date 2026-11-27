@@ -113,10 +113,13 @@ html:has(#glass-answer-type-trial){scrollbar-gutter:stable}
 <svg width="0" height="0" aria-hidden="true" style="position:absolute"><defs>
  <filter id="adaptive-ink" color-interpolation-filters="sRGB" primitiveUnits="objectBoundingBox" x="-20%" y="-30%" width="140%" height="160%">
   <feImage id="ink-illumination" preserveAspectRatio="none" result="mask"/>
-  <feComponentTransfer in="mask" result="polarity"><feFuncA type="linear" slope="16.667" intercept="-7.833"/></feComponentTransfer>
+  <feColorMatrix in="mask" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1 0 0 0 0" result="textMask"/>
+  <feColorMatrix in="mask" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 1 0 0 0" result="rowMask"/>
+  <feComponentTransfer id="ink-switch" in="mask" result="polarity"><feFuncA type="linear" slope="16.667" intercept="-7.833"/></feComponentTransfer>
   <feColorMatrix in="SourceGraphic" values=".05984 -1.14432 -.11552 0 1.14  -.34016 -.74432 -.11552 0 1.14  -.34016 -1.14432 .28448 0 1.14  0 0 0 1 0" result="light"/>
   <feColorMatrix in="SourceGraphic" values=".9 0 0 0 0  0 .9 0 0 0  0 0 .9 0 0  0 0 0 1 0" result="dark"/>
-  <feComposite in="light" in2="polarity" operator="in" result="lit"/>
+  <feComposite in="rowMask" in2="polarity" operator="over" result="softSelection"/>
+  <feComposite id="night-ink" in="light" in2="polarity" operator="in" result="lit"/>
   <feComposite id="day-ink" in="dark" in2="polarity" operator="out" result="unlit"/>
   <feComposite in="lit" in2="unlit" operator="arithmetic" k2="1" k3="1"/>
  </filter>
@@ -238,20 +241,20 @@ card.addEventListener("click",e=>{
 const title=card.querySelector(".lens-hud h3");
 const answers=root.querySelector(".lens-answers"), answerInput=root.querySelector(".lens-editor");
 const send=root.querySelector(".lens-send"), receipt=root.querySelector(".lens-receipt"), originLink=root.querySelector(".lens-origin");
-function syncAnswer(){
+function syncAnswer(selectionChanged=false){
  const restoreOrigin=originLink.hidden;
  receipt.textContent="";originLink.hidden=false;
- if(restoreOrigin)size(true);
+ if(restoreOrigin || (selectionChanged && material==="gentle"))size(true);
  send.disabled=!(answerInput.value.trim()||answers.querySelector(":checked"));
 }
 function useWrittenAnswer(){
  const selected=answers.querySelector(":checked");
  if(selected)selected.checked=false;
- syncAnswer();
+ syncAnswer(!!selected);
 }
 answerInput.addEventListener("click",()=>{if(answers.querySelector(":checked"))useWrittenAnswer();});
 answerInput.addEventListener("input",useWrittenAnswer);
-answers.addEventListener("change",()=>{answerInput.value="";syncAnswer();});
+answers.addEventListener("change",()=>{answerInput.value="";syncAnswer(true);});
 send.addEventListener("click",()=>{
  originLink.hidden=true;receipt.textContent="预览已提交";send.disabled=true;
  size(true);
@@ -309,7 +312,7 @@ function split(c,w,h){
  const edge=Math.round(w*.5);
  c.save();c.beginPath();c.rect(edge,0,w-edge,h);c.clip();c.translate(edge,0);paper(c,w,h);c.restore();
 }
-const adaptsInk=()=>["adaptive","tonal","lustre","relief"].includes(material);
+const adaptsInk=()=>["adaptive","tonal","lustre","relief","gentle"].includes(material);
 let ambient=null;
 function backdrop(){
  ambient=null;
@@ -425,16 +428,35 @@ function controlRims(w,h){
  }
  return {dx,dy,protectedArea};
 }
+function roundedWeight(b,x,y,radius,start,end){
+ const hw=(b.right-b.left)/2,hh=(b.bottom-b.top)/2;
+ radius=Math.min(radius,hw,hh);
+ const dx=Math.abs(x-b.left-hw)-hw,dy=Math.abs(y-b.top-hh)-hh;
+ if(Math.max(dx,dy)>=-start)return 0;
+ const qx=dx+radius,qy=dy+radius;
+ const depth=radius-Math.hypot(Math.max(0,qx),Math.max(0,qy))-Math.min(Math.max(qx,qy),0);
+ const t=clip((depth-start)/(end-start),0,1);
+ return t*t*(3-2*t);
+}
 function bezel(){
  const w=lens.width,h=lens.height,n=w*h,r=parseFloat(getComputedStyle(card).borderTopLeftRadius);
  const crystal=material!=="soft",roll=Math.min(crystal?26:24,ch*.27);
  const softAxis=v=>Math.log1p(Math.exp(clip(v/4,-60,60)))*4;
- const boxes=crystal?textZones():[],labels=material==="relief"?textZones(true):[];
+ const gentle=material==="gentle",relief=gentle||material==="relief";
+ const boxes=crystal?textZones():[],labels=relief?textZones(true):[];
+ let selectedRow=null;
+ const selected=gentle&&kind==="question"&&answers.querySelector("input:checked")?.closest("label");
+ if(selected){
+   const row=selected.getBoundingClientRect(),origin=card.getBoundingClientRect();
+   selectedRow={left:row.left-origin.left,top:row.top-origin.top,right:row.right-origin.left,bottom:row.bottom-origin.top,
+     radius:parseFloat(getComputedStyle(selected).borderTopLeftRadius)};
+ }
  const clearerEdge=material==="rim"||adaptsInk(),rimWidth=kind==="done"?8:12;
  map={x:new Float32Array(n),y:new Float32Array(n),edge:new Float32Array(n),tint:new Float32Array(n),gloss:new Float32Array(n),lip:new Float32Array(n),type:new Float32Array(n),rim:new Float32Array(n)};
  map.innerGlint=material==="adaptive"?new Float32Array(n):null;
  map.fields=controlRims(w,h);
- map.labels=material==="relief"?new Float32Array(n):null;
+ map.labels=relief?new Float32Array(n):null;
+ map.selected=gentle?new Float32Array(n):null;
  output=lc.createImageData(w,h);
  for(let y=0,i=0;y<h;y++)for(let x=0;x<w;x++,i++){
    const xx=(x+.5)/scale-cw/2,yy=(y+.5)/scale-ch/2;
@@ -465,7 +487,13 @@ function bezel(){
      if(nearest===0)break;
    }
    map.type[i]=Math.exp(-nearest/(2*12*12));
-   if(map.labels){
+   if(gentle){
+     let textWeight=0;
+     for(const b of labels)textWeight=Math.max(textWeight,roundedWeight(b,cx,cy,9,-6,3));
+     const rowWeight=selectedRow?roundedWeight(selectedRow,cx,cy,selectedRow.radius,1,9):0;
+     const t=clip((depth-9)/7,0,1),interior=t*t*(3-2*t);
+     map.labels[i]=textWeight*interior;map.selected[i]=rowWeight*interior;
+   }else if(map.labels){
      for(const b of labels){
        const dx=Math.max(b.left-cx,0,cx-b.right),dy=Math.max(b.top-cy,0,cy-b.bottom);
        const weight=Math.max(0,1-(dx*dx+dy*dy)/25);
@@ -524,7 +552,7 @@ function draw(){
  const w=lens.width,h=lens.height,bw=wall.width,bh=wall.height,dst=output.data;
  const crystal=material!=="soft",doc=scene==="paper",dark=scene==="editor",done=kind==="done";
  const strength=(crystal?(done?16:27):(done?11:19))*scale;
- const lustre=material==="lustre",relief=material==="relief";
+ const lustre=material==="lustre",gentle=material==="gentle",relief=material==="relief"||gentle;
  const reach=Math.max(1,Math.round(12*scale)),stroke={base:0};
  if(lustre && !ambient)ambient=ambientBackdrop();
  const fields=map.fields,fieldBend=(crystal?10:7)*scale;
@@ -546,7 +574,9 @@ function draw(){
    const i01=(Math.min(iy+1,bh-1)*bw+ix)*4,i11=i01+(i10-i00);
    const w00=(1-ax)*(1-ay),w10=ax*(1-ay),w01=(1-ax)*ay,w11=ax*ay;
    const protect=map.type[i],rim=map.rim[i];
-   const overlap=relief&&map.labels[i]>0?strokeOverlap(ix,iy,bw,bh,reach,map.labels[i],stroke):0;
+   let weight=relief?map.labels[i]:0;
+   if(gentle)weight+=(1-weight)*.44*map.selected[i];
+   const overlap=weight>0?strokeOverlap(ix,iy,bw,bh,reach,weight,stroke):0;
    const localY=.2126*soft[i00]+.7152*soft[i00+1]+.0722*soft[i00+2];
    const groundY=lustre ? .2126*ambient[i00]+.7152*ambient[i00+1]+.0722*ambient[i00+2]:localY;
    const u=clip((178-groundY)/62,0,1),night=u*u*(3-2*u);
@@ -598,7 +628,7 @@ function draw(){
        b+=(fill+.20*detail-b)*night*control;
      }
      let color=(b+(milkColor[k]-b)*Math.min(.91,milk))*(1-shade);
-     if(overlap>0)color-=.30*overlap*Math.max(0,color-stroke.base);
+     if(overlap>0)color-=(gentle ? .40 : .30)*overlap*Math.max(0,color-stroke.base);
      dst[i*4+k]=color+(255-color)*reflection;
    }
    dst[i*4+3]=255;
@@ -619,15 +649,22 @@ function updateInk(ox,oy,w,h,bw,bh,illumination){
    const sx=clip(ox+Math.floor((x+.5)*w/mw),0,bw-1),sy=clip(oy+Math.floor((y+.5)*h/mh),0,bh-1);
    const i=(sy*bw+sx)*4;
    let level=.2126*illumination[i]+.7152*illumination[i+1]+.0722*illumination[i+2];
+   let rowMix=0;
    if(map.labels){
-     const label=map.labels[Math.floor((y+.5)*h/mh)*w+Math.floor((x+.5)*w/mw)];
+     const i=Math.floor((y+.5)*h/mh)*w+Math.floor((x+.5)*w/mw);
+     const label=map.labels[i],row=map.selected?.[i]||0;
      if(label>0){
        const overlap=strokeOverlap(sx,sy,bw,bh,reach,label,stroke);
        level-=overlap*Math.max(0,level-stroke.base);
      }
+     if(row>0)rowMix=.30*strokeOverlap(sx,sy,bw,bh,reach,row,stroke);
    }
    const coverage=Math.round(255*clip((144-level)/50,0,1));
-   mask.data[(y*mw+x)*4+3]=coverage;
+   const dst=(y*mw+x)*4;
+   if(map.selected){
+     mask.data[dst]=coverage;mask.data[dst+1]=Math.round(rowMix*255);mask.data[dst+3]=255;
+     if(mask.data[dst+1])needsLightInk=true;
+   }else mask.data[dst+3]=coverage;
    if(coverage>119)needsLightInk=true;
  }
  root.classList.toggle("adaptive",needsLightInk);
@@ -668,7 +705,10 @@ window.renderPreview=({kind:nextKind,mat:nextMaterial,background:nextScene,rende
  root.dataset.material=material==="soft"?"soft":"crystal";
  root.classList.toggle("system",system);
  root.classList.toggle("adaptive",material==="adaptive");
- document.getElementById("day-ink").setAttribute("in",material==="tonal"||material==="lustre"||material==="relief"?"SourceGraphic":"dark");
+ const gentle=material==="gentle";
+ document.getElementById("ink-switch").setAttribute("in",gentle?"textMask":"mask");
+ for(const id of ["day-ink","night-ink"])document.getElementById(id).setAttribute("in2",gentle?"softSelection":"polarity");
+ document.getElementById("day-ink").setAttribute("in",material==="tonal"||material==="lustre"||material==="relief"||material==="gentle"?"SourceGraphic":"dark");
  resetPreview();size(true,backgroundChanged);
 };
 const ro=new ResizeObserver(()=>size());ro.observe(stage);ro.observe(card);

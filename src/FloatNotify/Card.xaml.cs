@@ -83,6 +83,9 @@ internal partial class Card : Window, IDisposable
 
             choices = new DirectChoices(this, notice, chat, canBind, questionScope);
             IsVisibleChanged += (_,_) => { if(IsVisible) choices.StartReading(); else choices.PauseReading(); };
+            RoutedEventHandler selectionChanged=(_,_)=>{if(this.material==GlassMaterial.SoftFocus)lens.InvalidateLayout();};
+            Options.AddHandler(System.Windows.Controls.Primitives.ToggleButton.CheckedEvent,selectionChanged);
+            Options.AddHandler(System.Windows.Controls.Primitives.ToggleButton.UncheckedEvent,selectionChanged);
             PreviewKeyDown += OnUrgentKeyDown;
         }
         else
@@ -200,11 +203,11 @@ internal partial class Card : Window, IDisposable
         lens.Dispose();backdrop.Dispose();LiveBackdrop=false;
         GlassShell.Background=null;
     }
-    bool UsesPixels => material is GlassMaterial.Liquid or GlassMaterial.TonalLiquid or GlassMaterial.Adaptive or GlassMaterial.Lustre or GlassMaterial.TextRelief;
+    bool UsesPixels => material is GlassMaterial.Liquid or GlassMaterial.TonalLiquid or GlassMaterial.Adaptive or GlassMaterial.Lustre or GlassMaterial.TextRelief or GlassMaterial.SoftFocus;
     void RestoreShell()
     {
-        if(material is GlassMaterial.Adaptive or GlassMaterial.TonalLiquid or GlassMaterial.Lustre or GlassMaterial.TextRelief){
-            adaptiveInk??=new AdaptiveInk(preserveDayInk:material!=GlassMaterial.Adaptive);
+        if(material is GlassMaterial.Adaptive or GlassMaterial.TonalLiquid or GlassMaterial.Lustre or GlassMaterial.TextRelief or GlassMaterial.SoftFocus){
+            adaptiveInk??=new AdaptiveInk(preserveDayInk:material!=GlassMaterial.Adaptive,softSelection:material==GlassMaterial.SoftFocus);
             adaptiveInk.SetMask(null);
             (urgent?DialogFace:Hud).Effect=material==GlassMaterial.Adaptive?adaptiveInk:null;
         }
