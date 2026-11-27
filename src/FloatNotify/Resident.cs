@@ -66,6 +66,8 @@ internal sealed partial class Resident : ApplicationContext
     DateTime titlesModified;
 
     bool shuttingDown;
+    int pendingReads;
+    TaskCompletionSource? readsDrained;
     readonly System.Windows.Forms.Timer pulse=new(){Interval=400};
     public Resident()
     {
@@ -75,11 +77,11 @@ internal sealed partial class Resident : ApplicationContext
         menu.Items.Add("退出浮笺",null,(_,_)=>ExitThread());
         tray=new NotifyIcon{Icon=System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!),Text="浮笺",Visible=true,ContextMenuStrip=menu};
         tray.DoubleClick+=(_,_)=>OpenSettings();
-        monitor=new MonitorFiles(n=>Post(()=>Observe(n)));
+        monitor=new MonitorFiles(n=>Post(()=>TrackRead(Observe(n))));
         _=Listen();
         _=OfficialApproval.Listen(a=>Post(()=>OfferApproval(a)),(a,result)=>Post(()=>FinishApproval(a,result)),stop.Token);
         trialTimer.Tick+=(_,_)=>ShowScheduledTrial();
-        pulse.Tick+=(_,_)=>Tick();pulse.Start();
+        pulse.Tick+=(_,_)=>TrackRead(Tick());pulse.Start();
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged+=DisplaysChanged;
         Audit.Write("resident-start");
         if(prefs.PendingCodex!=null || !prefs.Codex)Post(()=>_ = ChangeCodexAsync(prefs.PendingCodex??false));
@@ -149,8 +151,9 @@ internal sealed partial class Resident : ApplicationContext
     }
     // A desktop notification may carry only an unrelated server request number.
     // Reconcile it only if the original form can be identified; otherwise keep the reminder.
-    async void Observe(Notice notice)
+    async Task Observe(Notice notice)
     {
+        if(shuttingDown)return;
         handedOff.RemoveAll(h=>h.Until<=DateTime.UtcNow);
         if(notice.Kind==Kind.Permission && notice.Source=="desktop" &&
             handedOff.Any(h=>h.Request.Details.Chat==notice.Chat))
@@ -159,7 +162,7 @@ internal sealed partial class Resident : ApplicationContext
             if(HasUniqueTitle(notice.Chat,title))
             {
                 var started=DateTime.UtcNow;
-                var form=await Task.Run(()=>FormBridge.Read(notice,title));
+                var form=await Task.Run(()=>FormBridge.Read(notice,title)).WaitAsync(stop.Token);
                 if(shuttingDown || seen.TryGetValue((Guid.Empty,Kind.RequestAnswered,notice.Id),out var resolved) && resolved>=started)return;
                 if(form!=null && HandledInOriginal(notice,form.Context)){
                     seen[(notice.Chat,notice.Kind,notice.Id)]=DateTime.UtcNow;return;
@@ -174,7 +177,7 @@ internal sealed partial class Resident : ApplicationContext
         if(n.Source is "session" or "desktop" or "notification" or "native" or "hook")
             lastSignal=$"{DateTime.Now:yyyy-MM-dd HH:mm:ss} · {DiagnosticReport.SourceName(n.Source)} · {SignalName(n.Kind)}";
         if(n.Source!="preview" && n.Kind is (Kind.Done or Kind.Permission or Kind.Question or Kind.CheckApproval) && !prefs.Accept(n.Kind))return;
-        if(n.Kind==Kind.CheckApproval){CheckNativeApproval(n);return;}
+        if(n.Kind==Kind.CheckApproval){TrackRead(CheckNativeApproval(n));return;}
         if(n.Kind is Kind.Answered or Kind.RequestAnswered or Kind.TurnEnded)
         {
             if(n.Kind==Kind.RequestAnswered)seen[(Guid.Empty,Kind.RequestAnswered,n.Id)]=DateTime.UtcNow;
@@ -275,7 +278,7 @@ internal sealed partial class Resident : ApplicationContext
     bool HasUniqueTitle(Guid chat,string title) =>
         names.TryGetValue(chat,out var known) && known==title &&
         !names.Any(other=>other.Key!=chat && other.Value==title);
-    async void CheckNativeApproval(Notice hint)
+    async Task CheckNativeApproval(Notice hint)
     {
         var chat=hint.Chat;
         if(approvalChecks.TryGetValue(chat,out var active) && active.Turn==hint.Turn){
@@ -295,7 +298,7 @@ internal sealed partial class Resident : ApplicationContext
                 if(HasDesktopApproval())break;
                 var title=ChatTitle(chat);
                 if(!HasUniqueTitle(chat,title))break;
-                var form=await Task.Run(()=>FormBridge.Read(probe,title));
+                var form=await Task.Run(()=>FormBridge.Read(probe,title)).WaitAsync(stop.Token);
                 if(shuttingDown || !Current() || HasDesktopApproval())break;
                 if(live!=null && form?.FormKey==live.NativeForm && form.Context==live.Body)missed=0;
                 else if(live!=null && (form!=null || ++missed>=3))
@@ -307,7 +310,7 @@ internal sealed partial class Resident : ApplicationContext
                     live=probe with {Id="form/"+Guid.NewGuid().ToString("N"),Source="native",NativeForm=form.FormKey,Body=form.Context};
                     Receive(live);
                 }
-                await Task.Delay(650);
+                await Task.Delay(650,stop.Token);
             }
         }
         finally
@@ -325,15 +328,16 @@ internal sealed partial class Resident : ApplicationContext
         {
             if(entry.Notice.Chat!=Guid.Empty && Native.ForegroundRoute(foreground,monitor.Routes) is Guid visible)
                 return (visible==entry.Notice.Chat ? CompletionView.SameChat : CompletionView.OtherChat,"route-id");
-            var document=await foregroundChat.Read(foreground);
+            var document=await foregroundChat.Read(foreground,stop.Token);
             if(foreground!=Native.GetForegroundWindow())return (CompletionView.Unknown,"unresolved");
             var result=ForegroundChat.Match(entry.Notice.Chat,document,names);
             return (result,result==CompletionView.Unknown?"unresolved":"title");
         }
         finally { entry.CheckingView=false; }
     }
-    async void Tick()
+    async Task Tick()
     {
+        if(shuttingDown)return;
         bool connectionChanged=RefreshConnection();
         if(settings is {WindowState:not FormWindowState.Minimized} &&
             (publishedRevision!=history.Revision || connectionChanged))settings.RefreshState();
@@ -352,7 +356,7 @@ internal sealed partial class Resident : ApplicationContext
             if(fg==IntPtr.Zero)return;
             bool inClient=Native.CodexInFront(fg);
             var route=inClient?Native.ForegroundRoute(fg,monitor.Routes):null;
-            var document=inClient && route==null?await foregroundChat.Read(fg):null;
+            var document=inClient && route==null?await foregroundChat.Read(fg,stop.Token):null;
             if(shuttingDown || Native.GetForegroundWindow()!=fg)return;
             foreach(var e in completions){
                 var view=!inClient?CompletionView.OtherApp:route is {} id?
@@ -362,9 +366,26 @@ internal sealed partial class Resident : ApplicationContext
         }finally{pollingViews=false;}
     }
     bool pollingViews;
-    protected override void ExitThreadCore()
+    async void TrackRead(Task read)
     {
-        shuttingDown=true;trialTimer.Stop();trialTimer.Dispose();stop.Cancel();monitor.Dispose();pulse.Stop();pulse.Dispose();
+        if(read.IsCompletedSuccessfully)return;
+        pendingReads++;
+        try{await read;}
+        catch(OperationCanceledException) when(stop.IsCancellationRequested){}
+        finally{if(--pendingReads==0)readsDrained?.TrySetResult();}
+    }
+
+    protected override async void ExitThreadCore()
+    {
+        if(shuttingDown)return;
+        shuttingDown=true;
+        trialTimer.Stop();trialTimer.Dispose();pulse.Stop();pulse.Dispose();monitor.Dispose();
+        stop.Cancel();
+        // Keep the message loop alive until UI continuations have observed cancellation.
+        if(pendingReads!=0){
+            readsDrained=new(TaskCreationOptions.RunContinuationsAsynchronously);
+            await readsDrained.Task;
+        }
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplaysChanged;
         settings?.Close();RemoveCards(_=>true);foreach(var trayWindow in overflow.Values)trayWindow.Close();tray.Visible=false;tray.ContextMenuStrip?.Dispose();tray.Dispose();dispatcher.Dispose();
         Audit.Write("resident-stop");base.ExitThreadCore();

@@ -156,7 +156,7 @@ internal sealed partial class Resident
                 var fg=Native.GetForegroundWindow();
                 var focus=Native.KeyboardWindow(fg);
                 card.Place(face.Value,scale);
-                RecordShown(e,card,area,fg,focus);
+                TrackRead(RecordShown(e,card,area,fg,focus));
                 changeZ=true;
             }else if(old!=face.Value.Location){
                 card.Place(face.Value,scale);
@@ -192,7 +192,7 @@ internal sealed partial class Resident
     }
     void CloseOverflow(string name){if(overflow.Remove(name,out var chip))chip.Close();}
 
-    async void RecordShown(Entry entry,Card card,Rectangle area,IntPtr foreground,IntPtr previousFocus)
+    async Task RecordShown(Entry entry,Card card,Rectangle area,IntPtr foreground,IntPtr previousFocus)
     {
         var notice=entry.Notice;
         bool centered=card.Centered(area);
@@ -205,6 +205,7 @@ internal sealed partial class Resident
         if(notice.Kind==Kind.Done){
             bool named=names.TryGetValue(notice.Chat,out var indexed) && card.DisplayedTitle==indexed;
             var (view,match)=await ViewOf(entry,foreground);
+            if(shuttingDown)return;
             if(entry.Visible && entry.Window==card)entry.ReturnedToTask(view);
             shown+=$" chat={notice.Chat} named={named} match={match} keyboardWindow={keyboard} turn={notice.Id} view={view}";
         }else shown+=$" chat={notice.Chat} turn={notice.Turn} request={notice.Id} keyboardWindow={keyboard}";

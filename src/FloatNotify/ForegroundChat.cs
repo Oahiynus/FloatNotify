@@ -13,7 +13,7 @@ internal sealed class ForegroundChat
 
     // Called on the resident's UI thread. An unresponsive accessibility provider
     // must not hold up an approval or start a new worker on every timer tick.
-    public async Task<string?> Read(IntPtr window)
+    public async Task<string?> Read(IntPtr window,CancellationToken stop)
     {
         if (reading == null || reading.IsCompleted)
         {
@@ -21,7 +21,7 @@ internal sealed class ForegroundChat
             reading = Task.Run(() => ReadTitle(window));
         }
         if (readingWindow != window) return null;
-        try { return await reading.WaitAsync(TimeSpan.FromMilliseconds(800)); }
+        try { return await reading.WaitAsync(TimeSpan.FromMilliseconds(800),stop).ConfigureAwait(false); }
         catch (TimeoutException) { return null; }
     }
 
