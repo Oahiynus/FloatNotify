@@ -23,7 +23,7 @@ internal sealed class LiquidLens : IDisposable
     public ImageBrush? Brush { get; private set; }
     public void InvalidateLayout() => layoutDirty=true;
 
-    public int Draw(Card card, bool hud)
+    public int Draw(Card card, bool hud, bool clear)
     {
         var face=card.GlassShell;
         var dpi=VisualTreeHelper.GetDpi(face);
@@ -40,7 +40,7 @@ internal sealed class LiquidLens : IDisposable
         }
         var origin=face.PointToScreen(new Point());
         int changed=LiquidFrame(lens,(int)Math.Round(origin.X),(int)Math.Round(origin.Y),width,height,(float)dpi.DpiScaleX,
-            hud?1:0,zones,zones.Length,out var pixels,out int w,out int h);
+            (hud?1:0) | (clear?2:0),zones,zones.Length,out var pixels,out int w,out int h);
         if(changed<=0)return changed;
         if(image==null || image.PixelWidth!=w || image.PixelHeight!=h){
             image=new WriteableBitmap(w,h,96,96,PixelFormat.Bgra32,null);
@@ -85,7 +85,7 @@ internal sealed class LiquidLens : IDisposable
         Brush=null;image=null;zones=[];layoutDirty=true;
     }
     [DllImport("GlassBackdrop.dll")] static extern IntPtr LiquidCreate(IntPtr card,int width,int height);
-    [DllImport("GlassBackdrop.dll")] static extern int LiquidFrame(IntPtr lens,int x,int y,int width,int height,float dpi,int hud,
+    [DllImport("GlassBackdrop.dll")] static extern int LiquidFrame(IntPtr lens,int x,int y,int width,int height,float dpi,int flags,
         [In] Zone[] zones,int count,out IntPtr pixels,out int imageWidth,out int imageHeight);
     [DllImport("GlassBackdrop.dll")] static extern void LiquidDestroy(IntPtr lens);
 }

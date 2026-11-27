@@ -21,7 +21,7 @@ $sourceFiles=@('FloatNotify.csproj','NuGet.Config','BuildGlass.cmd','GlassBackdr
     'Card.xaml','Card.xaml.cs','OverflowWindow.xaml','OverflowWindow.xaml.cs','CardPlacement.cs','Checks.cs','CodexHookReport.cs','ConnectionVerification.cs',
     'DesktopChatRoutes.cs','DiagnosticReport.cs','DirectChoices.cs','Events.cs','ForegroundChat.cs','FormBridge.cs','GlassSurface.cs',
     'LiquidLens.cs','LocalData.cs','Monitor.cs','OfficialApproval.cs','Program.cs','Resident.cs','Resident.Deck.cs',
-    'Resident.Settings.cs','ReleaseUpdates.cs','SettingsWindow.cs','ThreadWorkspaces.cs')
+    'Resident.Settings.cs','Resident.Updates.cs','ReleaseUpdates.cs','UpdateInstaller.cs','InstallUpdate.ps1','SettingsWindow.cs','ThreadWorkspaces.cs')
 foreach($rel in @($sourceFiles)+@($manifest.Where({$_.StartsWith('SettingsUI/')}))){
     $dest=Join-Path $clean $rel
     $null=New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dest)

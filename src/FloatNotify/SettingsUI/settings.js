@@ -55,23 +55,27 @@ const row=(title,desc,control)=>'<div class="row"><div><strong>'+title+'</strong
 const toggle=(key,name,disabled=false)=>'<button aria-label="'+name+'" role="switch" class="switch" aria-checked="'+!!state.opts[key]+'" data-toggle="'+key+'" '+(disabled?'disabled':'')+'></button>';
 function appearance(){
  return head('弹窗外观','在下方预览材质和背景，或在桌面上试弹。')+
- '<div class="surface appearanceSettings">'+row('卡片材质','',segment('mat',{rim:'液态玻璃',soft:'毛玻璃'},state.mat))+'<div id="renderrow" '+(state.mat==='soft'?'hidden':'')+'>'+row('折射方式','',segment('renderer',{pixels:'局部像素折射',system:'系统合成'},state.renderer))+'</div></div>'+
+ '<div class="surface appearanceSettings">'+row('卡片材质','',segment('mat',{rim:'液态玻璃',clear:'清透玻璃',soft:'毛玻璃'},state.mat))+'<div id="renderrow" '+(state.mat!=='rim'?'hidden':'')+'>'+row('折射方式','',segment('renderer',{pixels:'局部像素折射',system:'系统合成'},state.renderer))+'</div></div>'+
  '<section class="previewPanel" aria-label="卡片预览"><div class="sectionhead previewHead"><h2>卡片预览</h2>'+segment('kind',{approval:labels.approval,question:labels.question,done:labels.done},state.kind)+'</div>'+
  '<div class="trywrap"><div class="stage"><iframe title="定稿卡片预览"></iframe></div><div class="footbar"><div class="toolbar"><label for="bg">预览背景</label><select id="bg"><option value="silk">彩色桌面</option><option value="paper">浅色文档</option><option value="editor">深色编辑器</option></select></div>'+button('trial',trialActive?'结束试弹':'3 秒后试弹','primary')+'</div><div class="subnote">点击后设置窗口会最小化，3 秒后卡片会出现在你正在使用的窗口上。</div></div></section>';}
-let updateInfo={checking:false,message:'',available:false};
+let updateInfo={phase:'idle',message:'',available:false};
 function refreshUpdateControls(){
  const check=$('[data-act="checkUpdate"]');
  if(!check)return;
- check.disabled=updateInfo.checking;
- check.textContent=updateInfo.checking?'正在检查…':'检查更新';
- $('[data-act="openRelease"]').hidden=!updateInfo.available;
+ const busy=updateInfo.phase!=='idle';
+ check.disabled=busy;
+ check.textContent=updateInfo.phase==='check'?'正在检查…':'检查更新';
+ const install=$('[data-act="installUpdate"]'),notes=$('[data-act="openRelease"]');
+ install.hidden=notes.hidden=!updateInfo.available;
+ install.disabled=notes.disabled=busy;
+ install.textContent=updateInfo.phase==='install'?'正在安装…':updateInfo.phase==='download'?'正在下载…':'更新并重启';
  $('.updateStatus').textContent=updateInfo.message;
 }
 function aboutSection(){
  const {version,windows,runtime,installDir,logDir}=state.about;
  const fields=[['运行环境',windows+' · '+runtime],['安装目录',installDir],['日志目录',logDir]];
  return section('关于')+'<div class="surface aboutCard"><div class="aboutIdentity"><img src="folio.png" width="40" height="40" alt=""><div><strong>浮笺 <span lang="en">FloatNotify</span></strong><p>版本 '+escapeHtml(version)+'</p></div>'+
-   '<div class="updateActions">'+button('checkUpdate','检查更新')+'<button class="button primary" data-act="openRelease" hidden>查看新版</button></div>'+
+   '<div class="updateActions">'+button('checkUpdate','检查更新')+'<button class="button primary" data-act="installUpdate" hidden>更新并重启</button><button class="button" data-act="openRelease" hidden>版本说明</button></div>'+
    '<p class="updateStatus" role="status"></p></div>'+
    '<dl class="aboutFields">'+fields.map(([label,value])=>'<div><dt>'+label+'</dt><dd>'+escapeHtml(value)+'</dd></div>').join('')+'</dl>'+
    '<div class="aboutActions">'+button('openLogs',icon('folder')+'打开日志目录')+button('copyDiagnostics',icon('copy')+'复制诊断信息')+'</div></div>';
@@ -137,7 +141,7 @@ function syncFrame(frame=$('#content .stage iframe')){
 }
 function appearanceControls(page=$('#content')){
  for(const el of page.querySelectorAll('button[data-field]'))el.setAttribute('aria-pressed',sel(el.dataset.val,state[el.dataset.field]));
- page.querySelector('#renderrow').hidden=state.mat==='soft';
+ page.querySelector('#renderrow').hidden=state.mat!=='rim';
  return syncFrame(page.querySelector('iframe'));
 }
 function paint(){
@@ -194,9 +198,16 @@ bridge.addEventListener('message',({data})=>{
  trialActive=!!data.trial;
  state.about=data.about;state.connection=data.connection;state.changingCodex=data.changingCodex;state.retryCodex=data.retryCodex;
  state.opts=data.opts;state.visible=data.visible;state.events=data.events;state.revision=data.revision;
- state.mat=data.material==='Frosted'?'soft':'rim';
+ state.mat=data.material==='Clear'?'clear':data.material==='Frosted'?'soft':'rim';
  if(state.mat==='rim')state.renderer=data.material==='LiquidSystem'?'system':'pixels';
- if(!initialized){initialized=true;go(location.hash.slice(1));return;}
+ if(!initialized){
+   initialized=true;
+   if(location.hash==='#about'){
+     history.replaceState(null,'','#general');go('general');
+     $('.aboutCard')?.scrollIntoView({block:'start'});
+   }else go(location.hash.slice(1));
+   return;
+ }
  if(state.page==='appearance'){
    if(configChanged)sidebar();
    appearanceControls();const b=$('[data-act=trial]');b.disabled=false;b.textContent=trialActive?'结束试弹':'3 秒后试弹';
@@ -223,12 +234,12 @@ document.addEventListener('click',e=>{
    if(d.field==='filter'){state.filter=d.val;paint();return;}
    if(d.field==='kind'){state.kind=d.val;appearanceControls();return;}
    let mat=d.field==='mat'?d.val:state.mat,renderer=d.field==='renderer'?d.val:state.renderer;
-   send('material',mat==='soft'?'Frosted':renderer==='system'?'LiquidSystem':'Liquid');return;
+   send('material',mat==='clear'?'Clear':mat==='soft'?'Frosted':renderer==='system'?'LiquidSystem':'Liquid');return;
  }
  switch(d.act){
    case 'retryCodex':send('toggle','codex',state.retryCodex);break;
    case 'copyDiagnostics':feedback('正在读取 Codex 的 Hook 状态…');send(d.act);break;
-   case 'checkUpdate':case 'openRelease':case 'openLogs':send(d.act);break;
+   case 'checkUpdate':case 'installUpdate':case 'openRelease':case 'openLogs':send(d.act);break;
    case 'clear':$('#confirm').showModal();break;
    case 'cancel':$('#confirm').close();break;
    case 'confirm':$('#confirm').close();send('clear');break;

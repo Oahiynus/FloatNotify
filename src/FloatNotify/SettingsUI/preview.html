@@ -352,8 +352,9 @@ function bezel(){
  const crystal=material!=="soft",roll=Math.min(crystal?26:24,ch*.27);
  const softAxis=v=>Math.log1p(Math.exp(clip(v/4,-60,60)))*4;
  const boxes=crystal?textZones():[];
- const clearerEdge=material==="rim",rimWidth=kind==="done"?8:12;
+ const clearerEdge=material==="rim"||material==="clear",rimWidth=kind==="done"?8:12;
  map={x:new Float32Array(n),y:new Float32Array(n),edge:new Float32Array(n),tint:new Float32Array(n),gloss:new Float32Array(n),lip:new Float32Array(n),type:new Float32Array(n),rim:new Float32Array(n)};
+ map.innerGlint=material==="clear"?new Float32Array(n):null;
  map.fields=controlRims(w,h);
  output=lc.createImageData(w,h);
  for(let y=0,i=0;y<h;y++)for(let x=0;x<w;x++,i++){
@@ -367,7 +368,7 @@ function bezel(){
    const u=clearerEdge?clip(1-depth/rimWidth,0,1):0;
    const rim=u*u*(3-2*u);
    map.rim[i]=rim;
-   map.edge[i]=slope*slope*(.62+.38*slope)*(1+.085*rim);
+   map.edge[i]=slope*slope*(.62+.38*slope)*(1+.085*rim)*(material==="clear"?1.20:1);
    map.tint[i]=1-slope*slope;
    if(!crystal){
      map.gloss[i]=.69*Math.exp(-depth/2.2)+.16*slope*slope;map.lip[i]=.22*slope*slope;
@@ -376,6 +377,7 @@ function bezel(){
    // A narrow directional glint sits on the same continuous shoulder as the longer refractive falloff.
    map.gloss[i]=.83*Math.exp(-((depth-.9)**2)/2.3)+.29*Math.exp(-depth/6);
    map.lip[i]=Math.exp(-depth/7);
+   if(map.innerGlint)map.innerGlint[i]=Math.exp(-((depth-3.8)**2)/2.8);
    const cx=xx+cw/2,cy=yy+ch/2;
    let nearest=1e6;
    for(const b of boxes){
@@ -383,7 +385,7 @@ function bezel(){
      nearest=Math.min(nearest,dx*dx+dy*dy);
      if(nearest===0)break;
    }
-   map.type[i]=Math.exp(-nearest/(2*12*12));
+   map.type[i]=Math.exp(-nearest/(material==="clear"?2*25*25:2*12*12));
  }
 }
 function fitFooter(){
@@ -463,6 +465,12 @@ function draw(){
      milk=(base+(1-base)*coverage*Math.min(.73,lift))*(1-.115*rim*(1-.75*protect));
      const lip=map.lip[i],shoulder=4*lip*(1-lip);
      reflection=clip(map.gloss[i]*(.12+1.10*front**5+.68*back**7)+.062*front**3*lip*rim,0,.95);
+     if(material==="clear"){
+       const clearBase=.035+(dark ? .24 : 0)+.025*t;
+       const body=localY+(248-localY)*clearBase;
+       milk=clearBase+(1-clearBase)*clip(((dark ? 171 : 185)-body)/Math.max(35,248-body),0,1)*protect;
+       reflection+=(1-reflection)*map.innerGlint[i]*(.12+.30*back*back);
+     }
      shade=lip*(.023+.11*(1-Math.abs(incidence))**2)+.073*(.18+.82*back)*shoulder*rim;
    }else{
      reflection=clip(map.gloss[i]*(.17+.64*front**2+.32*back**4),0,.98);

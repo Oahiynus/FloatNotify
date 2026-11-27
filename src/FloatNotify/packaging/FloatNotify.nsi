@@ -7,6 +7,7 @@ SetCompressor /SOLID lzma
 !include "x64.nsh"
 !include "WordFunc.nsh"
 !include "Sections.nsh"
+!include "FileFunc.nsh"
 
 !define App "浮笺 FloatNotify"
 !define RegKey "Software\Microsoft\Windows\CurrentVersion\Uninstall\FloatNotify"
@@ -25,6 +26,7 @@ ShowInstDetails show
 ShowUninstDetails show
 Var Registered
 Var HookDir
+Var AppUpdate
 Var ConnectArg
 Var Code
 Var StatusText
@@ -66,8 +68,19 @@ Function .onInit
     ${EndIf}
     SetRegView 64
     SetShellVarContext current
+    ${GetParameters} $0
+    ClearErrors
+    ${GetOptions} $0 "/APPUPDATE" $1
+    ${IfNot} ${Errors}
+        StrCpy $AppUpdate 1
+    ${EndIf}
     ReadRegStr $Registered HKCU "${RegKey}" "InstallLocation"
     ${If} $Registered != ""
+        ${If} $AppUpdate == 1
+        ${AndIf} $Registered != $INSTDIR
+            SetErrorLevel 3
+            Abort
+        ${EndIf}
         StrCpy $INSTDIR "$Registered"
         ReadRegStr $0 HKCU "${RegKey}" "DisplayVersion"
         ${VersionCompare} "$0" "${AppVersion}" $1
@@ -112,6 +125,7 @@ Section "浮笺桌面程序（必选）" Main
     SectionGetFlags 1 $0
     IntOp $0 $0 & ${SF_SELECTED}
     ${If} $0 != 0
+    ${AndIf} $AppUpdate != 1
         StrCpy $ConnectArg "-Connect"
     ${EndIf}
     DetailPrint "正在校验文件并安装浮笺…"

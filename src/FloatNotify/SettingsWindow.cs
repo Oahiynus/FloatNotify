@@ -1,6 +1,5 @@
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
-using System.Diagnostics;
 using System.Text.Json;
 using System.Runtime.InteropServices;
 
@@ -11,8 +10,8 @@ internal sealed class SettingsWindow : Form
     const string Address="https://fujian.local/index.html";
     readonly WebView2 web=new(){Dock=DockStyle.Fill};
     readonly Resident resident;
-    bool ready, copyingDiagnostics, checkingUpdates;
-    ReleaseUpdate? update;
+    bool ready, copyingDiagnostics;
+    readonly bool openAbout;
     FormWindowState lastReportedState;
     protected override CreateParams CreateParams
     {
@@ -88,8 +87,9 @@ internal sealed class SettingsWindow : Form
             case "close":BeginInvoke(Close);break;
         }
     }
-    public SettingsWindow(Resident resident)
+    public SettingsWindow(Resident resident,bool openAbout)
     {
+        this.openAbout=openAbout;
         this.resident=resident;Text="浮笺";Icon=System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!);
         StartPosition=FormStartPosition.CenterScreen;ClientSize=new Size(1040,710);MinimumSize=new Size(620,470);
         Controls.Add(web);Shown+=async (_,_)=>await Initialize();
@@ -119,12 +119,7 @@ internal sealed class SettingsWindow : Form
                     if(action=="init"){ready=true;PublishWindowState();PublishUpdate();}
                     if(action=="window"){WindowCommand(root.Str("key"));return;}
                     if(!ready)return;
-                    if(action=="checkUpdate"){await CheckUpdateAsync();return;}
-                    if(action=="openRelease"){
-                        if(!checkingUpdates && update?.ReleasePage is {} page)
-                            Process.Start(new ProcessStartInfo(page.AbsoluteUri){UseShellExecute=true});
-                        return;
-                    }
+                    if(action is "checkUpdate" or "installUpdate" or "openRelease"){resident.UpdateAction(action);return;}
                     if(action=="copyDiagnostics")
                     {
                         if(copyingDiagnostics)return;
@@ -142,22 +137,10 @@ internal sealed class SettingsWindow : Form
                     Send(new{error=ex.Message});RefreshState();
                 }
             };
-            core.Navigate(Address);
+            core.Navigate(openAbout?Address+"#about":Address);
         }catch(Exception ex){if(!IsDisposed)MessageBox.Show(this,"设置窗口打开失败。\n"+ex.Message,"浮笺");}
     }
-    async Task CheckUpdateAsync()
-    {
-        if(checkingUpdates)return;
-        checkingUpdates=true;
-        update=null;
-        PublishUpdate();
-        try { update=await ReleaseUpdates.CheckAsync(Resident.AppVersion); }
-        finally { checkingUpdates=false;PublishUpdate(); }
-    }
-    void PublishUpdate()=>Send(new{update=new{
-        checking=checkingUpdates, message=checkingUpdates?"正在连接 GitHub…":update?.Message??"",
-        available=update?.ReleasePage!=null
-    }});
+    public void PublishUpdate()=>Send(resident.UpdateState());
     void Send(object value)
     {
         if(ready&&!IsDisposed&&web.CoreWebView2 is {} core&&Trusted(core.Source))core.PostWebMessageAsJson(JsonSerializer.Serialize(value,LocalData.Json));

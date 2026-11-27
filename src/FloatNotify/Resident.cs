@@ -72,6 +72,7 @@ internal sealed partial class Resident : ApplicationContext
     public Resident()
     {
         _=dispatcher.Handle;
+        ReadUpdateResult();
         var menu=new ContextMenuStrip();
         menu.Items.Add("打开浮笺",null,(_,_)=>OpenSettings());
         menu.Items.Add("退出浮笺",null,(_,_)=>ExitThread());

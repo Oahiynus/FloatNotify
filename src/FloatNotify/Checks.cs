@@ -32,6 +32,7 @@ internal static class Checks
             !response.Resolves(chat,[desktop with{Id="other/0"}]),"desktop replies require the matching desktop instance and request");
         Ok(!response.Resolves(chat,aliases) && response.Resolves(chat,[desktop with{CallId="call"},sessionRef]),"legacy time-linked history cannot close a structured question on an unverified receipt");
         CheckReleaseUpdates(Ok);
+        CheckUpdateDownloads(Ok);
         CheckQuestionIdentity(chat,turn,Ok);
         var duplicate=new FormBridge.QuestionScope(new DesktopChatRoutes(),false);
         Ok(duplicate.Matches(chat,chat,"同名对话","同名对话"),"same-name question follows the matching window route");
@@ -135,6 +136,41 @@ internal static class Checks
         check(Probe("1.0.3",status:503).Message.Contains("503"),"HTTP error is visible");
         check(Probe("1.0.3",error:new HttpRequestException()).Message.Contains("检查网络"),"offline check can be retried");
         check(Probe("1.0.3",error:new TaskCanceledException()).Message.Contains("超时"),"timeout can be retried");
+    }
+    static void CheckUpdateDownloads(Action<bool,string> check)
+    {
+        var version=new Version(1,2,10);
+        string name=UpdateInstaller.FileName(version);
+        byte[] bytes=[1,2,3,4];
+        string digest=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
+        void TryDownload(string checksum,byte[] payload,bool valid)
+        {
+            var dir=Directory.CreateTempSubdirectory("floatnotify-download-");
+            try{
+                using var http=new HttpClient(new ReleaseReply(request=>{
+                    string url="https://github.com/Oahiynus/FloatNotify/releases/download/v1.2.10/"+name;
+                    var result=new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+                    result.Content=request.RequestUri?.AbsoluteUri switch{
+                        var u when u==url+".sha256"=>new StringContent(checksum),
+                        var u when u==url=>new ByteArrayContent(payload),
+                        _=>throw new InvalidOperationException("unexpected update URL")
+                    };
+                    return result;
+                }));
+                bool accepted;
+                try{
+                    string actual=UpdateInstaller.DownloadAsync(version,dir.FullName,_=>{},CancellationToken.None,http).GetAwaiter().GetResult();
+                    accepted=actual==digest && File.ReadAllBytes(Path.Combine(dir.FullName,name)).SequenceEqual(bytes);
+                }catch(InvalidDataException){accepted=false;}
+                check(accepted==valid,"release checksum and exact asset must match");
+            }finally{UpdateInstaller.Discard(dir.FullName,version);}
+        }
+        TryDownload(digest.ToLowerInvariant()+"  "+name+"\n",bytes,true);
+        TryDownload(digest+"  "+name,[1,2,3,5],false);
+        TryDownload(digest+"  Other.exe",bytes,false);
+        TryDownload(new string('x',4096),bytes,false);
+        check(typeof(UpdateInstaller).Assembly.GetManifestResourceNames().Contains("FloatNotify.InstallUpdate.ps1"),"update helper included in package");
+        check(DiagnosticReport.MaterialName("Clear").Contains("清透玻璃"),"new card material is identifiable in diagnostics");
     }
     static void CheckQuestionIdentity(Guid chat,Guid turn,Action<bool,string> check)
     {

@@ -52,7 +52,8 @@ internal sealed partial class Resident
     public void OpenSettings()
     {
         if(settings==null||settings.IsDisposed){
-            settings=new SettingsWindow(this);
+            settings=new SettingsWindow(this,OpenUpdatedAbout);
+            OpenUpdatedAbout=false;
             settings.FormClosed+=(_,_)=>{settings=null;EndSettingsTrial();};
             settings.Show();
         }else{
@@ -237,7 +238,7 @@ internal sealed partial class Resident
                 break;
             }
             case "material":{
-                var next=key switch{"Liquid"=>GlassMaterial.Liquid,"LiquidSystem"=>GlassMaterial.LiquidSystem,"Frosted"=>GlassMaterial.Frosted,_=>throw new ArgumentException("未知材质。")};
+                var next=key switch{"Clear"=>GlassMaterial.Clear,"Liquid"=>GlassMaterial.Liquid,"LiquidSystem"=>GlassMaterial.LiquidSystem,"Frosted"=>GlassMaterial.Frosted,_=>throw new ArgumentException("未知材质。")};
                 GlassPreference.Write(next);material=next;foreach(var e in cards)e.Window?.ApplyMaterial(next);Audit.Write($"glass-material selected={next}");break;
             }
             case "openLogs":

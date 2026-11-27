@@ -198,18 +198,19 @@ internal partial class Card : Window, IDisposable
         lens.Dispose();backdrop.Dispose();LiveBackdrop=false;
         GlassShell.Background=null;
     }
+    bool UsesPixels => material is GlassMaterial.Liquid or GlassMaterial.Clear;
     void RestoreShell()
     {
-        GlassShell.Background=(Brush)FindResource(material==GlassMaterial.Frosted?"FrostedFace":"LiquidFace");
+        GlassShell.Background=(Brush)FindResource(material switch {GlassMaterial.Frosted=>"FrostedFace",GlassMaterial.Clear=>"ClearFace",_=>"LiquidFace"});
         GlassShell.BorderThickness=new Thickness(1.3);
         GlassShell.Child.Visibility=Visibility.Visible;
     }
     void SyncGlass()
     {
         if(closed || !IsVisible || !IsLoaded || GlassShell.ActualWidth<1 || GlassShell.ActualHeight<1 || workArea.IsEmpty || positioning)return;
-        if(material==GlassMaterial.Liquid && !lensFailed){
+        if(UsesPixels && !lensFailed){
             if(covered && lens.Brush!=null)return;
-            int changed=lens.Draw(this,!urgent);
+            int changed=lens.Draw(this,!urgent,material==GlassMaterial.Clear);
             if(changed>=0){
                 if(lens.Brush!=null && GlassShell.Background!=lens.Brush){
                     GlassShell.BorderThickness=new Thickness(0);
@@ -228,7 +229,7 @@ internal partial class Card : Window, IDisposable
             Audit.Write($"glass-pixels-unavailable reason={changed} fallback=system");
         }
         LiveBackdrop=backdrop.Place(Handle,GlassShell,material,!urgent);
-        if(!LiveBackdrop)GlassShell.Background=Paint(material==GlassMaterial.Frosted?"#EBF1F5F8":"#DDF1F5F8");
+        if(!LiveBackdrop)GlassShell.Background=Paint(material switch {GlassMaterial.Frosted=>"#EBF1F5F8",GlassMaterial.Clear=>"#CEDDEAF3",_=>"#DDF1F5F8"});
     }
     public void ShowOfficialApproval(ApprovalDetails request)
     {
@@ -320,7 +321,7 @@ internal partial class Card : Window, IDisposable
     }
     public void RaisePassive(){
         Native.SetWindowPos(Handle,(IntPtr)(-1),0,0,0,0,0x13);
-        if(material!=GlassMaterial.Liquid || lensFailed)SyncGlass();
+        if(!UsesPixels || lensFailed)SyncGlass();
     }
     void OnUrgentKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
