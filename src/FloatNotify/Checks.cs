@@ -497,6 +497,9 @@ internal static class Checks
         bool Visible(System.Windows.UIElement c)=>c.Visibility==System.Windows.Visibility.Visible;
         check(GlassPreference.Parse("clear")==GlassMaterial.Liquid && GlassPreference.Parse("adaptive")==GlassMaterial.Adaptive &&
             GlassPreference.Parse("tonal-liquid")==GlassMaterial.TonalLiquid,"retired preference uses liquid and the two adaptive choices stay distinct");
+        done.ApplyMaterial(GlassMaterial.Lustre);
+        check(GlassPreference.Parse("lustre")==GlassMaterial.Lustre && done.Hud.Effect==null &&
+            DiagnosticReport.MaterialName("Lustre").Contains("澄光液态玻璃"),"lustre is an independent pixel material with original daylight ink");
         done.ApplyMaterial(GlassMaterial.TonalLiquid);
         check(done.Hud.Effect==null && DiagnosticReport.MaterialName("TonalLiquid").Contains("明暗液态玻璃"),"tonal liquid starts with original ink until it samples a dark backdrop");
         done.ApplyMaterial(GlassMaterial.Adaptive);

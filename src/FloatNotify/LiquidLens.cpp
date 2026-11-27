@@ -12,7 +12,7 @@
 namespace {
 struct Zone { float left,top,right,bottom; int kind; }; // 0 text, 1 option/editor, 2 button
 struct Pixel { unsigned char b,g,r,a; };
-struct Optics { float x,y,tint,rim,ink,reflection,shade; };
+struct Optics { float x,y,tint,rim,ink,reflection,shade,control; };
 using Image=std::vector<Pixel>;
 float unit(float x){return std::clamp(x,0.f,1.f);}
 float square(float x){return x*x;}
@@ -20,7 +20,9 @@ float roundedDepth(float qx,float qy,float r){
     return r-std::hypot(std::max(0.f,qx),std::max(0.f,qy))-std::min(std::max(qx,qy),0.f);
 }
 float softAxis(float x){return 4.f*std::log1p(std::exp(std::clamp(x*.25f,-60.f,60.f)));}
-enum class Surface { Liquid, Adaptive, TonalLiquid };
+enum class Surface { Liquid, Adaptive, TonalLiquid, Lustre };
+float luma(Pixel p){return .2126f*p.r+.7152f*p.g+.0722f*p.b;}
+float nightWeight(float level){float t=unit((178.f-level)/62.f);return t*t*(3-2*t);}
 struct SamplingWindow;
 thread_local SamplingWindow* activeSample{};
 struct SamplingWindow {
@@ -36,7 +38,7 @@ struct SamplingWindow {
     int maskW{},maskH{};
     std::vector<Zone> zones;
     std::vector<Optics> map;
-    Image raw,nearBlur,farBlur,scratch,out;
+    Image raw,nearBlur,farBlur,scratch,out,ambient,tiles,tileSamples;
     ~SamplingWindow(){capture.detach();if(host)DestroyWindow(host);}
     bool open(HWND card,int sw,int sh){
         if(!capture.ready())return false;
@@ -80,12 +82,13 @@ struct SamplingWindow {
             float nx=std::copysign(vx/norm,xx),ny=std::copysign(vy/norm,yy);
             float slope=std::exp(-d/roll),u=unit(1-d/(hud?8.f:12.f)),rim=u*u*(3-2*u);
             float bend=strength*square(slope)*(.62f+.38f*slope)*(1+.085f*rim),tint=1-square(slope);
-            float fx=0,fy=0,nearest=1.e6f;
+            float fx=0,fy=0,nearest=1.e6f,controlDistance=1.e6f;
             for(const auto& z:zones){
-                if(!z.kind){
-                    float dx=std::max({z.left-px,0.f,px-z.right}),dy=std::max({z.top-py,0.f,py-z.bottom});
-                    nearest=std::min(nearest,dx*dx+dy*dy);
-                }else if(px>=z.left && px<=z.right && py>=z.top && py<=z.bottom){
+                float dx=std::max({z.left-px,0.f,px-z.right}),dy=std::max({z.top-py,0.f,py-z.bottom});
+                float distance=dx*dx+dy*dy;
+                if(z.kind)controlDistance=std::min(controlDistance,distance);
+                if(!z.kind)nearest=std::min(nearest,distance);
+                else if(px>=z.left && px<=z.right && py>=z.top && py<=z.bottom){
                     float hw=(z.right-z.left)/2,hh=(z.bottom-z.top)/2,rr=std::min({z.kind==2?14.f:12.f,hw,hh});
                     float cx=px-z.left-hw,cy=py-z.top-hh;
                     float a=std::abs(cx)-hw+rr,b=std::abs(cy)-hh+rr,arc=std::hypot(std::max(0.f,a),std::max(0.f,b));
@@ -108,7 +111,7 @@ struct SamplingWindow {
             shine+=(1-shine)*(.52f*std::max(0.f,facing)+.14f*std::max(0.f,-facing));
             map[y*w+x]={std::clamp(x-density*(nx*bend+xx*.024f*tint+10*fx),0.f,float(w-1)),
                          std::clamp(y-density*(ny*bend+yy*.024f*tint+10*fy),0.f,float(h-1)),
-                         tint,rim,std::exp(-nearest/288.f),shine,shade};
+                         tint,rim,std::exp(-nearest/288.f),shine,shade,surface==Surface::Liquid?0.f:std::exp(-controlDistance/72.f)};
         }
     }
     void blurPass(const Image& from,Image& to,int radius,bool vertical){
@@ -123,10 +126,66 @@ struct SamplingWindow {
             }
         }
     }
+    // Recover the underlying fill even when bright glyphs cover part of each tile.
+    // Averaging first would let those glyphs change the polarity of the WPF controls.
+    void sampleAmbient(){
+        int span=std::max(1,(int)std::round(24*density));
+        int cols=(w+span-1)/span,rows=(h+span-1)/span;
+        tileSamples.resize(size_t(cols)*rows);
+        for(int ty=0;ty<rows;++ty)for(int tx=0;tx<cols;++tx){
+            struct Bin {int count{},b{},g{},r{};};
+            Bin bins[32]{};
+            int count=0;
+            for(int y=ty*h/rows;y<(ty+1)*h/rows;y+=2)for(int x=tx*w/cols;x<(tx+1)*w/cols;x+=2){
+                auto p=raw[y*w+x];
+                auto& bin=bins[std::min(31,int(luma(p))/8)];
+                ++count;++bin.count;bin.b+=p.b;bin.g+=p.g;bin.r+=p.r;
+            }
+            // On text, the fill is usually the most common tone. Use the median on gradients.
+            const auto dominant=std::max_element(bins,bins+32,[](const Bin& a,const Bin& b){return a.count<b.count;});
+            auto tone=dominant;
+            if(dominant->count*3<count){
+                int rank=count/2;
+                for(auto& bin:bins){
+                    if(rank<bin.count){tone=&bin;break;}
+                    rank-=bin.count;
+                }
+            }
+            tileSamples[ty*cols+tx]={(unsigned char)(tone->b/tone->count),(unsigned char)(tone->g/tone->count),(unsigned char)(tone->r/tone->count),255};
+        }
+        // A heavy glyph can fill one tile. Suppress isolated tones while retaining extended window boundaries.
+        tiles=tileSamples;
+        for(int ty=0;ty<rows;++ty)for(int tx=0;tx<cols;++tx){
+            Pixel neighbors[8];int n=0;
+            for(int y=std::max(0,ty-1);y<=std::min(rows-1,ty+1);++y)
+                for(int x=std::max(0,tx-1);x<=std::min(cols-1,tx+1);++x)
+                    if(x!=tx || y!=ty)neighbors[n++]=tileSamples[y*cols+x];
+            if(n<3)continue;
+            std::sort(neighbors,neighbors+n,[](Pixel a,Pixel b){return luma(a)<luma(b);});
+            auto& p=tiles[ty*cols+tx];
+            auto lo=neighbors[n/4],hi=neighbors[n-1-n/4];
+            if(luma(p)>luma(hi)+48 || luma(p)<luma(lo)-48)p=neighbors[n/2];
+        }
+        ambient.resize(raw.size());
+        for(int y=0;y<h;++y){
+            float gy=std::clamp((y+.5f)*rows/h-.5f,0.f,float(rows-1));
+            int top=(int)gy,bottom=std::min(top+1,rows-1);
+            for(int x=0;x<w;++x){
+                float gx=std::clamp((x+.5f)*cols/w-.5f,0.f,float(cols-1));
+                int left=(int)gx,right=std::min(left+1,cols-1);
+                auto a=tiles[top*cols+left],b=tiles[top*cols+right],c=tiles[bottom*cols+left],d=tiles[bottom*cols+right];
+                auto interpolate=[&](int av,int bv,int cv,int dv){
+                    return (unsigned char)std::round(std::lerp(std::lerp(float(av),float(bv),gx-left),std::lerp(float(cv),float(dv),gx-left),gy-top));
+                };
+                ambient[y*w+x]={interpolate(a.b,b.b,c.b,d.b),interpolate(a.g,b.g,c.g,d.g),interpolate(a.r,b.r,c.r,d.r),255};
+            }
+        }
+    }
     void render(){
         int nearRadius=std::max(1,(int)std::round(2.2f*density)),farRadius=std::max(1,(int)std::round(6*density));
         blurPass(raw,scratch,nearRadius,false);blurPass(scratch,nearBlur,nearRadius,true);
         blurPass(nearBlur,scratch,farRadius,false);blurPass(scratch,farBlur,farRadius,true);
+        if(surface!=Surface::Liquid)sampleAmbient();
         float luminance=0;int samples=0;
         for(size_t i=0;i<raw.size();i+=73){auto p=raw[i];luminance+=.2126f*p.r+.7152f*p.g+.0722f*p.b;++samples;}
         luminance/=samples;
@@ -137,6 +196,10 @@ struct SamplingWindow {
             float ax=m.x-ix,ay=m.y-iy;
             float diff=unit((.08f+(.025f+.065f*(paper+dark))*m.tint+(.31f+.53f*paper+.25f*dark)*m.ink)*(1-.18f*m.rim));
             if(surface==Surface::Adaptive)diff=(.18f+.09f*m.tint+.48f*m.ink)*(1-.35f*m.rim);
+            const auto ground=surface==Surface::Liquid?Pixel{}:ambient[base];
+            float night=surface==Surface::Liquid?0.f:nightWeight(luma(ground));
+            float protect=night*std::max(m.ink,m.control);
+            if(surface==Surface::Lustre)diff*=1-.64f*night*(1-std::max(m.ink,m.control));
             float medium=2*diff*(1-diff),soft=diff*diff,sharp=1-medium-soft;
             auto p=farBlur[base];float local=.2126f*p.r+.7152f*p.g+.0722f*p.b;
             float milk;
@@ -147,11 +210,8 @@ struct SamplingWindow {
                 float light=local+(248-local)*veil,lack=185-light;
                 float lift=(lack+std::sqrt(lack*lack+36))*.5f/std::max(35.f,248-light);
                 milk=(veil+(1-veil)*(m.ink+.83f*dark*(1-m.ink))*std::min(.73f,lift))*(1-.115f*m.rim*(1-.75f*m.ink));
-                if(surface==Surface::TonalLiquid){
-                    // Keep the liquid bevel and scattering. Fade only its light veil over darker content.
-                    float u=unit((178.f-local)/62.f);
-                    float night=u*u*(3-2*u);
-                    float nightVeil=(.012f+.034f*m.tint)*(1-.115f*m.rim);
+                if(surface==Surface::TonalLiquid || surface==Surface::Lustre){
+                    float nightVeil=(surface==Surface::Lustre?.002f+.005f*m.tint:.012f+.034f*m.tint)*(1-.115f*m.rim);
                     milk+=(nightVeil-milk)*night;
                 }
             }
@@ -164,6 +224,11 @@ struct SamplingWindow {
             for(int k=0;k<3;++k){
                 float c=sharp*channel(raw,k)+medium*channel(nearBlur,k)+soft*channel(farBlur,k);
                 c+=.045f*(c-local);
+                if(protect>0){
+                    float fill=reinterpret_cast<const unsigned char*>(&ground)[k];
+                    float detail=std::clamp(channel(farBlur,k)-fill,-32.f,32.f);
+                    c+=(fill+.20f*detail-c)*protect;
+                }
                 c=(c+((250-2*k)-c)*milk)*(1-m.shade);
                 dst[k]=(unsigned char)std::clamp(c+(255-c)*m.reflection+.5f,0.f,255.f);
             }
@@ -175,9 +240,7 @@ struct SamplingWindow {
             maskW=(w+7)/8;maskH=(h+7)/8;inkMask.resize(size_t(maskW)*maskH);
             for(int y=0;y<maskH;++y)for(int x=0;x<maskW;++x){
                 int px=(2*x+1)*w/(2*maskW),py=(2*y+1)*h/(2*maskH);
-                const auto& optics=map[py*w+px];
-                const auto p=farBlur[int(optics.y)*w+int(optics.x)];
-                float level=.2126f*p.r+.7152f*p.g+.0722f*p.b;
+                float level=luma(ambient[py*w+px]);
                 auto coverage=(unsigned char)std::round(255*unit((144-level)/50));
                 inkMask[y*maskW+x]=coverage;
                 needsLightInk|=coverage>119; // First non-zero light-ink weight in AdaptiveInk.hlsl.
@@ -222,11 +285,11 @@ extern "C" __declspec(dllexport) void* LiquidCreate(HWND card,int w,int h) noexc
     return nullptr;
 }
 extern "C" __declspec(dllexport) int LiquidFrame(SamplingWindow* s,int x,int y,int w,int h,float dpi,int flags,const Zone* bounds,int count,void** pixels,int* rw,int* rh) noexcept{
-    auto surface=(flags&8)?Surface::TonalLiquid:(flags&4)?Surface::Adaptive:Surface::Liquid;
+    auto surface=(flags&16)?Surface::Lustre:(flags&8)?Surface::TonalLiquid:(flags&4)?Surface::Adaptive:Surface::Liquid;
     try{int result=s->frame({x,y,x+w,y+h},dpi,(flags&1)!=0,surface,bounds,count);*pixels=s->out.data();*rw=s->w;*rh=s->h;return result;}catch(...){return -1;}
 }
 extern "C" __declspec(dllexport) const unsigned char* LiquidInkMask(SamplingWindow* s,int* w,int* h) noexcept{
     *w=s->maskW;*h=s->maskH;
-    return s->surface==Surface::TonalLiquid && !s->needsLightInk ? nullptr : s->inkMask.data();
+    return s->surface!=Surface::Adaptive && !s->needsLightInk ? nullptr : s->inkMask.data();
 }
 extern "C" __declspec(dllexport) void LiquidDestroy(SamplingWindow* s) noexcept{delete s;}

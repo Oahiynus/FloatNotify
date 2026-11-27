@@ -309,7 +309,10 @@ function split(c,w,h){
  const edge=Math.round(w*.5);
  c.save();c.beginPath();c.rect(edge,0,w-edge,h);c.clip();c.translate(edge,0);paper(c,w,h);c.restore();
 }
+const adaptsInk=()=>["adaptive","tonal","lustre"].includes(material);
+let ambient=null;
 function backdrop(){
+ ambient=null;
  const w=wall.width,h=wall.height;
  wc.save();wc.scale(scale,scale);({paper,editor,silk,split}[scene])(wc,sw,sh);wc.restore();
  raw=wc.getImageData(0,0,w,h).data;
@@ -320,6 +323,49 @@ function backdrop(){
    return tc.getImageData(0,0,w,h).data;
  }
  medium=blurred(2.2);soft=blurred(6);
+}
+// Estimate illumination from the dominant fill in each tile, before any lens distortion.
+function ambientBackdrop(){
+ const w=wall.width,h=wall.height,span=Math.max(1,Math.round(24*scale));
+ const cols=Math.ceil(w/span),rows=Math.ceil(h/span);
+ const tile=document.createElement("canvas");tile.width=cols;tile.height=rows;
+ const ctx=tile.getContext("2d"),pixels=ctx.createImageData(cols,rows);
+ const bins=new Uint32Array(32*4);
+ for(let ty=0;ty<rows;ty++)for(let tx=0;tx<cols;tx++){
+   bins.fill(0);let count=0,best=0;
+   const x0=Math.floor(tx*w/cols),x1=Math.floor((tx+1)*w/cols);
+   const y0=Math.floor(ty*h/rows),y1=Math.floor((ty+1)*h/rows);
+   for(let y=y0;y<y1;y+=2)for(let x=x0;x<x1;x+=2){
+     const i=(y*w+x)*4,b=4*Math.min(31,Math.floor((.2126*raw[i]+.7152*raw[i+1]+.0722*raw[i+2])/8));
+     bins[b]++;count++;
+     for(let k=0;k<3;k++)bins[b+1+k]+=raw[i+k];
+   }
+   for(let b=4;b<bins.length;b+=4)if(bins[b]>bins[best])best=b;
+   if(bins[best]*3<count){
+     let rank=Math.floor(count/2);
+     for(let b=0;b<bins.length;b+=4){if(rank<bins[b]){best=b;break;}rank-=bins[b];}
+   }
+   const at=(ty*cols+tx)*4;
+   for(let k=0;k<3;k++)pixels.data[at+k]=Math.floor(bins[best+1+k]/bins[best]);
+   pixels.data[at+3]=255;
+ }
+ const samples=pixels.data.slice(),brightness=i=>.2126*samples[i]+.7152*samples[i+1]+.0722*samples[i+2];
+ for(let ty=0;ty<rows;ty++)for(let tx=0;tx<cols;tx++){
+   const at=4*(ty*cols+tx),neighbors=[];
+   for(let y=Math.max(0,ty-1);y<=Math.min(rows-1,ty+1);y++)
+     for(let x=Math.max(0,tx-1);x<=Math.min(cols-1,tx+1);x++)
+       if(x!==tx||y!==ty)neighbors.push(4*(y*cols+x));
+   const n=neighbors.length;if(n<3)continue;
+   neighbors.sort((a,b)=>brightness(a)-brightness(b));
+   const q=Math.floor(n/4),v=brightness(at);
+   if(v>brightness(neighbors[n-1-q])+48||v<brightness(neighbors[q])-48){
+     const mid=neighbors[Math.floor(n/2)];pixels.data.set(samples.subarray(mid,mid+4),at);
+   }
+ }
+ ctx.putImageData(pixels,0,0);
+ const expanded=document.createElement("canvas");expanded.width=w;expanded.height=h;
+ const full=expanded.getContext("2d");full.drawImage(tile,0,0,w,h);
+ return full.getImageData(0,0,w,h).data;
 }
 // Feathered type protection follows the printed words, leaving the clear face visible around them.
 function textZones(){
@@ -342,20 +388,28 @@ function textZones(){
 // The same bend displaces the backdrop sample and orients its directional glint.
 function controlRims(w,h){
  const dx=new Float32Array(w*h),dy=new Float32Array(w*h),origin=card.getBoundingClientRect();
+ const protectedArea=adaptsInk()?new Float32Array(w*h):null;
  const panel=card.querySelector('[data-show="'+kind+'"]');
- for(const el of panel.querySelectorAll(".lens-answers label,.lens-editor,.glass-action")){
+ const selectors=".lens-answers label,.lens-editor,.glass-action"+(protectedArea?",.lens-terminal":"");
+ for(const el of panel.querySelectorAll(selectors)){
+   const protectOnly=el.classList.contains("lens-terminal");
    const box=el.getBoundingClientRect();
    const isButton=el.classList.contains("glass-action"),band=isButton?4.5:7;
    const r=Math.min(box.height/2,box.width/2,parseFloat(getComputedStyle(el).borderTopLeftRadius));
    const left=box.left-origin.left,top=box.top-origin.top,hw=box.width/2,hh=box.height/2;
-   const x0=Math.max(0,Math.floor(left*scale)),x1=Math.min(w,Math.ceil((left+box.width)*scale));
-   const y0=Math.max(0,Math.floor(top*scale)),y1=Math.min(h,Math.ceil((top+box.height)*scale));
+   const pad=protectedArea?18:0;
+   const x0=Math.max(0,Math.floor((left-pad)*scale)),x1=Math.min(w,Math.ceil((left+box.width+pad)*scale));
+   const y0=Math.max(0,Math.floor((top-pad)*scale)),y1=Math.min(h,Math.ceil((top+box.height+pad)*scale));
    for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++){
      const cx=(x+.5)/scale-left-hw,cy=(y+.5)/scale-top-hh;
      const qx=Math.abs(cx)-hw+r,qy=Math.abs(cy)-hh+r;
      const ax=Math.max(0,qx),ay=Math.max(0,qy),arc=Math.hypot(ax,ay);
      const depth=r-arc-Math.min(Math.max(qx,qy),0);
-     if(depth<=0||depth>=band)continue;
+     if(protectedArea){
+       const sx=Math.max(0,Math.abs(cx)-hw),sy=Math.max(0,Math.abs(cy)-hh),i=y*w+x;
+       protectedArea[i]=Math.max(protectedArea[i],Math.exp(-(sx*sx+sy*sy)/72));
+     }
+     if(protectOnly||depth<=0||depth>=band)continue;
      const shoulder=1-depth/band;
      const gain=shoulder*shoulder*Math.min(1,depth*1.6)*(isButton ? .62 : 1);
      const i=y*w+x;
@@ -363,14 +417,14 @@ function controlRims(w,h){
      dy[i]=Math.sign(cy)*(arc?ay/arc:Number(qy>=qx))*gain;
    }
  }
- return {dx,dy};
+ return {dx,dy,protectedArea};
 }
 function bezel(){
  const w=lens.width,h=lens.height,n=w*h,r=parseFloat(getComputedStyle(card).borderTopLeftRadius);
  const crystal=material!=="soft",roll=Math.min(crystal?26:24,ch*.27);
  const softAxis=v=>Math.log1p(Math.exp(clip(v/4,-60,60)))*4;
  const boxes=crystal?textZones():[];
- const clearerEdge=material==="rim"||material==="tonal"||material==="adaptive",rimWidth=kind==="done"?8:12;
+ const clearerEdge=material==="rim"||adaptsInk(),rimWidth=kind==="done"?8:12;
  map={x:new Float32Array(n),y:new Float32Array(n),edge:new Float32Array(n),tint:new Float32Array(n),gloss:new Float32Array(n),lip:new Float32Array(n),type:new Float32Array(n),rim:new Float32Array(n)};
  map.innerGlint=material==="adaptive"?new Float32Array(n):null;
  map.fields=controlRims(w,h);
@@ -445,6 +499,8 @@ function draw(){
  const w=lens.width,h=lens.height,bw=wall.width,bh=wall.height,dst=output.data;
  const crystal=material!=="soft",doc=scene==="paper",dark=scene==="editor",done=kind==="done";
  const strength=(crystal?(done?16:27):(done?11:19))*scale;
+ const adapts=adaptsInk();
+ if(adapts && !ambient)ambient=ambientBackdrop();
  const fields=map.fields,fieldBend=(crystal?10:7)*scale;
  const tint=dark ? .78:doc ? .60:.53;
  const ox=Math.round(left*scale),oy=Math.round(top*scale),milkColor=[246,248,250];
@@ -464,9 +520,13 @@ function draw(){
    const i01=(Math.min(iy+1,bh-1)*bw+ix)*4,i11=i01+(i10-i00);
    const w00=(1-ax)*(1-ay),w10=ax*(1-ay),w01=(1-ax)*ay,w11=ax*ay;
    const protect=map.type[i],rim=map.rim[i];
-   const diffusion=material==="adaptive"?(.18+.09*t+.48*protect)*(1-.35*rim):crystal?
+   const groundY=adapts ? .2126*ambient[i00]+.7152*ambient[i00+1]+.0722*ambient[i00+2]:255;
+   const u=clip((178-groundY)/62,0,1),night=u*u*(3-2*u);
+   const control=adapts?Math.max(protect,fields.protectedArea[i]):0;
+   let diffusion=material==="adaptive"?(.18+.09*t+.48*protect)*(1-.35*rim):crystal?
      (.08+(doc||dark ? .09:.025)*t+(doc ? .84 : dark ? .56 : .31)*protect)*(1-.18*rim):
      .11+.87*t;
+   if(material==="lustre")diffusion*=1-.64*night*(1-control);
    const midWeight=2*diffusion*(1-diffusion),softWeight=diffusion*diffusion,rawWeight=1-midWeight-softWeight;
    const incidence=nx*lightX+ny*lightY;
    const front=Math.max(0,incidence),back=Math.max(0,-incidence);
@@ -486,9 +546,8 @@ function draw(){
      if(material==="adaptive"){
        milk=.012+.016*t;
        reflection=.78*reflection+.14*map.innerGlint[i]*back*back;
-     }else if(material==="tonal"){
-       const u=clip((178-localY)/62,0,1),night=u*u*(3-2*u);
-       const nightVeil=(.012+.034*t)*(1-.115*rim);
+     }else if(material==="tonal"||material==="lustre"){
+       const nightVeil=(material==="lustre"?.002+.005*t:.012+.034*t)*(1-.115*rim);
        milk+=(nightVeil-milk)*night;
      }
      shade=lip*(.023+.11*(1-Math.abs(incidence))**2)+.073*(.18+.82*back)*shoulder*rim;
@@ -507,13 +566,17 @@ function draw(){
      const far=soft[i00+k]*w00+soft[i10+k]*w10+soft[i01+k]*w01+soft[i11+k]*w11;
      let b=rawWeight*sharp+midWeight*near+softWeight*far;
      if(crystal)b+=.045*(b-localY);
+     if(night*control>0){
+       const fill=ambient[i00+k],detail=clip(far-fill,-32,32);
+       b+=(fill+.20*detail-b)*night*control;
+     }
      const color=(b+(milkColor[k]-b)*Math.min(.91,milk))*(1-shade);
      dst[i*4+k]=color+(255-color)*reflection;
    }
    dst[i*4+3]=255;
  }
  lc.putImageData(output,0,0);
- if(material==="adaptive"||material==="tonal")updateInk(ox,oy,w,h,bw,bh);
+ if(adapts)updateInk(ox,oy,w,h,bw,bh);
  root.dataset.ready="";
 }
 const inkCanvas=document.createElement("canvas");
@@ -525,7 +588,7 @@ function updateInk(ox,oy,w,h,bw,bh){
  let needsLightInk=material==="adaptive";
  for(let y=0;y<mh;y++)for(let x=0;x<mw;x++){
    const sx=clip(ox+Math.floor((x+.5)*w/mw),0,bw-1),sy=clip(oy+Math.floor((y+.5)*h/mh),0,bh-1);
-   const i=(sy*bw+sx)*4,level=.2126*soft[i]+.7152*soft[i+1]+.0722*soft[i+2];
+   const i=(sy*bw+sx)*4,level=.2126*ambient[i]+.7152*ambient[i+1]+.0722*ambient[i+2];
    const coverage=Math.round(255*clip((144-level)/50,0,1));
    mask.data[(y*mw+x)*4+3]=coverage;
    if(coverage>119)needsLightInk=true;
@@ -568,7 +631,7 @@ window.renderPreview=({kind:nextKind,mat:nextMaterial,background:nextScene,rende
  root.dataset.material=material==="soft"?"soft":"crystal";
  root.classList.toggle("system",system);
  root.classList.toggle("adaptive",material==="adaptive");
- document.getElementById("day-ink").setAttribute("in",material==="tonal"?"SourceGraphic":"dark");
+ document.getElementById("day-ink").setAttribute("in",material==="adaptive"?"dark":"SourceGraphic");
  resetPreview();size(true,backgroundChanged);
 };
 const ro=new ResizeObserver(()=>size());ro.observe(stage);ro.observe(card);

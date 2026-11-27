@@ -41,14 +41,14 @@ internal sealed class LiquidLens : IDisposable
         }
         var origin=face.PointToScreen(new Point());
         int changed=LiquidFrame(lens,(int)Math.Round(origin.X),(int)Math.Round(origin.Y),width,height,(float)dpi.DpiScaleX,
-            (hud?1:0) | (material switch {GlassMaterial.Adaptive=>4,GlassMaterial.TonalLiquid=>8,_=>0}),zones,zones.Length,out var pixels,out int w,out int h);
+            (hud?1:0) | (material switch {GlassMaterial.Adaptive=>4,GlassMaterial.TonalLiquid=>8,GlassMaterial.Lustre=>16,_=>0}),zones,zones.Length,out var pixels,out int w,out int h);
         if(changed<=0)return changed;
         if(image==null || image.PixelWidth!=w || image.PixelHeight!=h){
             image=new WriteableBitmap(w,h,96,96,PixelFormat.Bgra32,null);
             Brush=new ImageBrush(image){Stretch=Stretch.Fill};
         }
         image.WritePixels(new Int32Rect(0,0,w,h),pixels,checked(w*h*4),w*4);
-        if(material is GlassMaterial.Adaptive or GlassMaterial.TonalLiquid){
+        if(material is GlassMaterial.Adaptive or GlassMaterial.TonalLiquid or GlassMaterial.Lustre){
             var mask=LiquidInkMask(lens,out int mw,out int mh);
             if(mask==IntPtr.Zero){InkMask=null;inkMask=null;return 1;}
             if(inkMask==null || inkMask.PixelWidth!=mw || inkMask.PixelHeight!=mh){
