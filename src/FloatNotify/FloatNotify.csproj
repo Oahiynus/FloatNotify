@@ -9,7 +9,7 @@
     <AssemblyName>FloatNotify</AssemblyName>
     <Product>浮笺 FloatNotify</Product>
     <ApplicationIcon>SettingsUI\folio.ico</ApplicationIcon>
-    <Version>1.0.3</Version>
+    <Version>1.0.4</Version>
     <Authors>Oahiynus</Authors>
     <Copyright>Copyright (c) 2026 Oahiynus</Copyright>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
