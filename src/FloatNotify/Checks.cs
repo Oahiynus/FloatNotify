@@ -1,3 +1,4 @@
+using System.Net.Http;
 using System.Text.Json;
 
 namespace FloatNotify;
@@ -30,6 +31,7 @@ internal static class Checks
         Ok(response.Resolves(chat,[desktop]) && !response.Resolves(chat,[sessionRef with{Id="server/0"}]) &&
             !response.Resolves(chat,[desktop with{Id="other/0"}]),"desktop replies require the matching desktop instance and request");
         Ok(!response.Resolves(chat,aliases) && response.Resolves(chat,[desktop with{CallId="call"},sessionRef]),"legacy time-linked history cannot close a structured question on an unverified receipt");
+        CheckReleaseUpdates(Ok);
         CheckQuestionIdentity(chat,turn,Ok);
         var duplicate=new FormBridge.QuestionScope(new DesktopChatRoutes(),false);
         Ok(duplicate.Matches(chat,chat,"同名对话","同名对话"),"same-name question follows the matching window route");
@@ -102,6 +104,37 @@ internal static class Checks
         Ok(FormBridge.ReopenedAction(original,reopened with {Actions=[..reopened.Actions.Reverse()]},"允许一次")==null,"changed menu rejected");
         Ok(FormBridge.ReopenedAction(original,reopened with {Context="不同的操作"},"允许一次")==null,"changed request details rejected");
         Console.WriteLine($"{count} checks passed.");
+    }
+    sealed class ReleaseReply(Func<HttpRequestMessage,HttpResponseMessage> reply) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)=>
+            Task.FromResult(reply(request));
+    }
+    static void CheckReleaseUpdates(Action<bool,string> check)
+    {
+        const string root="https://github.com/Oahiynus/FloatNotify/releases/";
+        ReleaseUpdate Probe(string installed, string? redirect=null, int status=302, Exception? error=null)
+        {
+            using var client=new HttpClient(new ReleaseReply(request=>{
+                if(request.RequestUri?.AbsoluteUri!=root+"latest")throw new InvalidOperationException("unexpected release endpoint");
+                if(error!=null)throw error;
+                var result=new HttpResponseMessage((System.Net.HttpStatusCode)status);
+                if(redirect!=null)result.Headers.Location=new Uri(redirect,UriKind.RelativeOrAbsolute);
+                return result;
+            }));
+            return ReleaseUpdates.CheckAsync(installed,client).GetAwaiter().GetResult();
+        }
+        var newer=Probe("1.9.9","/Oahiynus/FloatNotify/releases/tag/v1.10.0");
+        check(newer.ReleasePage?.AbsoluteUri==root+"tag/v1.10.0" && newer.Message.Contains("发现新版本"),"numeric update comparison and official release link");
+        check(Probe("1.0.3.0",root+"tag/v1.0.3") is {ReleasePage:null,Message:"当前已是最新正式版 v1.0.3。"},"current three-part release matches file version");
+        check(Probe("2.0.0",root+"tag/v1.10.0").Message.Contains("高于"),"local build ahead of the public release");
+        foreach(var url in new[]{root+"tag/v2.0.0-beta.1",root+"tag/v2.0.0?next=other","https://example.org/tag/v2.0.0","/other/FloatNotify/releases/tag/v2.0.0"})
+            check(Probe("1.0.3",url) is {ReleasePage:null} invalid && invalid.Message.Contains("无法识别"),"unrecognized release targets cannot open a browser");
+        check(Probe("1.0.3",status:200).Message.Contains("未返回"),"unexpected successful page is not treated as current");
+        check(Probe("1.0.3",status:404).Message.Contains("未找到"),"missing public release");
+        check(Probe("1.0.3",status:503).Message.Contains("503"),"HTTP error is visible");
+        check(Probe("1.0.3",error:new HttpRequestException()).Message.Contains("检查网络"),"offline check can be retried");
+        check(Probe("1.0.3",error:new TaskCanceledException()).Message.Contains("超时"),"timeout can be retried");
     }
     static void CheckQuestionIdentity(Guid chat,Guid turn,Action<bool,string> check)
     {

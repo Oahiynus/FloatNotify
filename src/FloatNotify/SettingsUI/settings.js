@@ -58,10 +58,21 @@ function appearance(){
  '<div class="surface appearanceSettings">'+row('卡片材质','',segment('mat',{rim:'液态玻璃',soft:'毛玻璃'},state.mat))+'<div id="renderrow" '+(state.mat==='soft'?'hidden':'')+'>'+row('折射方式','',segment('renderer',{pixels:'局部像素折射',system:'系统合成'},state.renderer))+'</div></div>'+
  '<section class="previewPanel" aria-label="卡片预览"><div class="sectionhead previewHead"><h2>卡片预览</h2>'+segment('kind',{approval:labels.approval,question:labels.question,done:labels.done},state.kind)+'</div>'+
  '<div class="trywrap"><div class="stage"><iframe title="定稿卡片预览"></iframe></div><div class="footbar"><div class="toolbar"><label for="bg">预览背景</label><select id="bg"><option value="silk">彩色桌面</option><option value="paper">浅色文档</option><option value="editor">深色编辑器</option></select></div>'+button('trial',trialActive?'结束试弹':'3 秒后试弹','primary')+'</div><div class="subnote">点击后设置窗口会最小化，3 秒后卡片会出现在你正在使用的窗口上。</div></div></section>';}
+let updateInfo={checking:false,message:'',available:false};
+function refreshUpdateControls(){
+ const check=$('[data-act="checkUpdate"]');
+ if(!check)return;
+ check.disabled=updateInfo.checking;
+ check.textContent=updateInfo.checking?'正在检查…':'检查更新';
+ $('[data-act="openRelease"]').hidden=!updateInfo.available;
+ $('.updateStatus').textContent=updateInfo.message;
+}
 function aboutSection(){
  const {version,windows,runtime,installDir,logDir}=state.about;
  const fields=[['运行环境',windows+' · '+runtime],['安装目录',installDir],['日志目录',logDir]];
- return section('关于')+'<div class="surface aboutCard"><div class="aboutIdentity"><img src="folio.png" width="40" height="40" alt=""><div><strong>浮笺 <span lang="en">FloatNotify</span></strong><p>版本 '+escapeHtml(version)+'</p></div></div>'+
+ return section('关于')+'<div class="surface aboutCard"><div class="aboutIdentity"><img src="folio.png" width="40" height="40" alt=""><div><strong>浮笺 <span lang="en">FloatNotify</span></strong><p>版本 '+escapeHtml(version)+'</p></div>'+
+   '<div class="updateActions">'+button('checkUpdate','检查更新')+'<button class="button primary" data-act="openRelease" hidden>查看新版</button></div>'+
+   '<p class="updateStatus" role="status"></p></div>'+
    '<dl class="aboutFields">'+fields.map(([label,value])=>'<div><dt>'+label+'</dt><dd>'+escapeHtml(value)+'</dd></div>').join('')+'</dl>'+
    '<div class="aboutActions">'+button('openLogs',icon('folder')+'打开日志目录')+button('copyDiagnostics',icon('copy')+'复制诊断信息')+'</div></div>';
 }
@@ -132,6 +143,7 @@ function appearanceControls(page=$('#content')){
 function paint(){
  sidebar();const content=$('#content');
  content.innerHTML=state.page==='recent'?recent():state.page==='general'?general():client(state.page);
+ if(state.page==='general')refreshUpdateControls();
  if($('#source'))$('#source').value=state.source;
 }
 let pendingAppearance;
@@ -173,6 +185,7 @@ bridge.addEventListener('message',({data})=>{
    button.firstElementChild.textContent=String.fromCodePoint(data.maximized?0xe923:0xe922);
    return;
  }
+ if(data.update){updateInfo=data.update;refreshUpdateControls();return;}
  if(data.error){const b=$('[data-act=trial]');if(b)b.disabled=false;feedback(data.error);return;}
  if(data.copied==='application'){feedback('已复制浮笺的应用诊断信息');return;}
  if(data.copied){const note=$('[data-record="'+data.copied+'"] .copyStatus');if(note)note.textContent='已复制这条提醒';return;}
@@ -215,7 +228,7 @@ document.addEventListener('click',e=>{
  switch(d.act){
    case 'retryCodex':send('toggle','codex',state.retryCodex);break;
    case 'copyDiagnostics':feedback('正在读取 Codex 的 Hook 状态…');send(d.act);break;
-   case 'openLogs':send(d.act);break;
+   case 'checkUpdate':case 'openRelease':case 'openLogs':send(d.act);break;
    case 'clear':$('#confirm').showModal();break;
    case 'cancel':$('#confirm').close();break;
    case 'confirm':$('#confirm').close();send('clear');break;

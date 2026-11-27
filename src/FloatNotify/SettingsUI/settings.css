@@ -185,7 +185,10 @@ button:focus-visible,select:focus-visible,summary:focus-visible,input:focus-visi
 @media(forced-colors:active){.seg button[aria-pressed=true]{outline:2px solid Highlight;outline-offset:-2px}.dot[data-status="on"]{forced-color-adjust:none;background:Highlight;border:1px solid Canvas;box-shadow:0 0 0 1px Highlight}.dot:is([data-status="idle"],[data-status="paused"]){border-color:GrayText}}
 
 .aboutIdentity,.aboutActions{display:flex;align-items:center;gap:10px}
-.aboutIdentity{padding:14px 17px;border-bottom:1px solid var(--hairline)}
+.aboutIdentity{padding:14px 17px;border-bottom:1px solid var(--hairline);flex-wrap:wrap}
+.updateActions{margin-inline-start:auto;display:flex;gap:8px;flex-wrap:wrap}
+.updateStatus{flex-basis:100%}
+.updateStatus:empty{height:0;position:absolute;overflow:hidden}
 .aboutIdentity img{flex:none}
 .aboutIdentity strong{font-size:16px;font-weight:650}
 .aboutIdentity strong span{margin-inline-start:3px;font-size:14px;font-weight:500;color:var(--muted)}

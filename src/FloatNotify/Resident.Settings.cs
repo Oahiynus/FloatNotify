@@ -78,8 +78,9 @@ internal sealed partial class Resident
                 ["项目 / 工作区",workspace.Label,workspace.Path]}};
     }
     sealed record AppDetails(string Version, string Windows, string Runtime, string InstallDir, string LogDir);
+    internal static readonly string AppVersion = Application.ProductVersion.Split('+')[0];
     static readonly AppDetails About = new(
-        Application.ProductVersion.Split('+')[0],
+        AppVersion,
         $"Windows · 内部版本 {Environment.OSVersion.Version.Build} · {RuntimeInformation.OSArchitecture}",
         RuntimeInformation.FrameworkDescription,
         Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory), Audit.Folder);
