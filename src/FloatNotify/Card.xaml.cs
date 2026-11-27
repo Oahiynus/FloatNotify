@@ -200,10 +200,10 @@ internal partial class Card : Window, IDisposable
         lens.Dispose();backdrop.Dispose();LiveBackdrop=false;
         GlassShell.Background=null;
     }
-    bool UsesPixels => material is GlassMaterial.Liquid or GlassMaterial.TonalLiquid or GlassMaterial.Adaptive or GlassMaterial.Lustre;
+    bool UsesPixels => material is GlassMaterial.Liquid or GlassMaterial.TonalLiquid or GlassMaterial.Adaptive or GlassMaterial.Lustre or GlassMaterial.TextRelief;
     void RestoreShell()
     {
-        if(material is GlassMaterial.Adaptive or GlassMaterial.TonalLiquid or GlassMaterial.Lustre){
+        if(material is GlassMaterial.Adaptive or GlassMaterial.TonalLiquid or GlassMaterial.Lustre or GlassMaterial.TextRelief){
             adaptiveInk??=new AdaptiveInk(preserveDayInk:material!=GlassMaterial.Adaptive);
             adaptiveInk.SetMask(null);
             (urgent?DialogFace:Hud).Effect=material==GlassMaterial.Adaptive?adaptiveInk:null;

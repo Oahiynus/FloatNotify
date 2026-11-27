@@ -10,7 +10,7 @@
 #pragma comment(lib,"Magnification.lib")
 
 namespace {
-struct Zone { float left,top,right,bottom; int kind; }; // 0 text, 1 option/editor, 2 button
+struct Zone { float left,top,right,bottom; int kind; }; // 0 text, 1 option/editor, 2 button, 3 title/option text for TextRelief
 struct Pixel { unsigned char b,g,r,a; };
 struct Optics { float x,y,tint,rim,ink,reflection,shade,control; };
 using Image=std::vector<Pixel>;
@@ -20,7 +20,7 @@ float roundedDepth(float qx,float qy,float r){
     return r-std::hypot(std::max(0.f,qx),std::max(0.f,qy))-std::min(std::max(qx,qy),0.f);
 }
 float softAxis(float x){return 4.f*std::log1p(std::exp(std::clamp(x*.25f,-60.f,60.f)));}
-enum class Surface { Liquid, Adaptive, TonalLiquid, Lustre };
+enum class Surface { Liquid, Adaptive, TonalLiquid, Lustre, TextRelief };
 float luma(Pixel p){return .2126f*p.r+.7152f*p.g+.0722f*p.b;}
 float nightWeight(float level){float t=unit((178.f-level)/62.f);return t*t*(3-2*t);}
 struct SamplingWindow;
@@ -82,10 +82,11 @@ struct SamplingWindow {
             float nx=std::copysign(vx/norm,xx),ny=std::copysign(vy/norm,yy);
             float slope=std::exp(-d/roll),u=unit(1-d/(hud?8.f:12.f)),rim=u*u*(3-2*u);
             float bend=strength*square(slope)*(.62f+.38f*slope)*(1+.085f*rim),tint=1-square(slope);
-            float fx=0,fy=0,nearest=1.e6f,controlDistance=1.e6f;
+            float fx=0,fy=0,nearest=1.e6f,controlDistance=1.e6f,labelDistance=1.e6f;
             for(const auto& z:zones){
                 float dx=std::max({z.left-px,0.f,px-z.right}),dy=std::max({z.top-py,0.f,py-z.bottom});
                 float distance=dx*dx+dy*dy;
+                if(z.kind==3){labelDistance=std::min(labelDistance,distance);continue;}
                 if(z.kind)controlDistance=std::min(controlDistance,distance);
                 if(!z.kind)nearest=std::min(nearest,distance);
                 else if(px>=z.left && px<=z.right && py>=z.top && py<=z.bottom){
@@ -109,9 +110,10 @@ struct SamplingWindow {
             float facing=-.68f*fx-.73f*fy;
             float shade=lip*(.023f+.11f*square(1-std::abs(incidence)))+.292f*(.18f+.82f*back)*lip*(1-lip)*rim+.075f*std::max(0.f,-facing);
             shine+=(1-shine)*(.52f*std::max(0.f,facing)+.14f*std::max(0.f,-facing));
+            float control=surface==Surface::Lustre?std::exp(-controlDistance/72.f):square(unit(1-labelDistance/25.f));
             map[y*w+x]={std::clamp(x-density*(nx*bend+xx*.024f*tint+10*fx),0.f,float(w-1)),
                          std::clamp(y-density*(ny*bend+yy*.024f*tint+10*fy),0.f,float(h-1)),
-                         tint,rim,std::exp(-nearest/288.f),shine,shade,surface==Surface::Lustre?std::exp(-controlDistance/72.f):0.f};
+                         tint,rim,std::exp(-nearest/288.f),shine,shade,control};
         }
     }
     void blurPass(const Image& from,Image& to,int radius,bool vertical){
@@ -181,11 +183,23 @@ struct SamplingWindow {
             }
         }
     }
+    // A bright stroke has darker material on opposite sides. A window boundary does not.
+    float strokeOverlap(int x,int y,int reach,float label,float& baseLight) const {
+        auto level=[&](int px,int py){return luma(nearBlur[py*w+px]);};
+        float horizontal=std::max(level(std::max(0,x-reach),y),level(std::min(w-1,x+reach),y));
+        float vertical=std::max(level(x,std::max(0,y-reach)),level(x,std::min(h-1,y+reach)));
+        baseLight=std::min(horizontal,vertical);
+        auto p=nearBlur[y*w+x];
+        float neutral=std::min({p.r,p.g,p.b});
+        return label*unit((125.f-baseLight)/53.f)*unit((neutral-baseLight-14.f)/45.f);
+    }
     void render(){
         int nearRadius=std::max(1,(int)std::round(2.2f*density)),farRadius=std::max(1,(int)std::round(6*density));
         blurPass(raw,scratch,nearRadius,false);blurPass(scratch,nearBlur,nearRadius,true);
         blurPass(nearBlur,scratch,farRadius,false);blurPass(scratch,farBlur,farRadius,true);
         const bool lustre=surface==Surface::Lustre;
+        const bool relief=surface==Surface::TextRelief;
+        int reach=std::max(1,(int)std::round(12*density));
         if(lustre)sampleAmbient();
         float luminance=0;int samples=0;
         for(size_t i=0;i<raw.size();i+=73){auto p=raw[i];luminance+=.2126f*p.r+.7152f*p.g+.0722f*p.b;++samples;}
@@ -204,6 +218,7 @@ struct SamplingWindow {
             float medium=2*diff*(1-diff),soft=diff*diff,sharp=1-medium-soft;
             auto p=farBlur[base];float local=.2126f*p.r+.7152f*p.g+.0722f*p.b;
             float milk;
+            float baseLight=0,overlap=relief && m.control>0?strokeOverlap(ix,iy,reach,m.control,baseLight):0;
             if(surface==Surface::Adaptive){
                 milk=.012f+.016f*m.tint;
             }else{
@@ -211,7 +226,7 @@ struct SamplingWindow {
                 float light=local+(248-local)*veil,lack=185-light;
                 float lift=(lack+std::sqrt(lack*lack+36))*.5f/std::max(35.f,248-light);
                 milk=(veil+(1-veil)*(m.ink+.83f*dark*(1-m.ink))*std::min(.73f,lift))*(1-.115f*m.rim*(1-.75f*m.ink));
-                if(surface==Surface::TonalLiquid || lustre){
+                if(surface==Surface::TonalLiquid || lustre || relief){
                     float nightVeil=(lustre?.002f+.005f*m.tint:.012f+.034f*m.tint)*(1-.115f*m.rim);
                     milk+=(nightVeil-milk)*(lustre?night:nightWeight(local));
                 }
@@ -231,6 +246,7 @@ struct SamplingWindow {
                     c+=(fill+.20f*detail-c)*protect;
                 }
                 c=(c+((250-2*k)-c)*milk)*(1-m.shade);
+                if(overlap>0)c-=.30f*overlap*std::max(0.f,c-baseLight);
                 dst[k]=(unsigned char)std::clamp(c+(255-c)*m.reflection+.5f,0.f,255.f);
             }
             dst[3]=255;
@@ -243,6 +259,11 @@ struct SamplingWindow {
                 int px=(2*x+1)*w/(2*maskW),py=(2*y+1)*h/(2*maskH);
                 const auto& optics=map[py*w+px];
                 float level=lustre?luma(ambient[py*w+px]):luma(farBlur[int(optics.y)*w+int(optics.x)]);
+                if(relief && optics.control>0){
+                    float baseLight;
+                    float overlap=strokeOverlap(int(optics.x),int(optics.y),reach,optics.control,baseLight);
+                    level-=overlap*std::max(0.f,level-baseLight);
+                }
                 auto coverage=(unsigned char)std::round(255*unit((144-level)/50));
                 inkMask[y*maskW+x]=coverage;
                 needsLightInk|=coverage>119; // First non-zero light-ink weight in AdaptiveInk.hlsl.
@@ -287,7 +308,7 @@ extern "C" __declspec(dllexport) void* LiquidCreate(HWND card,int w,int h) noexc
     return nullptr;
 }
 extern "C" __declspec(dllexport) int LiquidFrame(SamplingWindow* s,int x,int y,int w,int h,float dpi,int flags,const Zone* bounds,int count,void** pixels,int* rw,int* rh) noexcept{
-    auto surface=(flags&16)?Surface::Lustre:(flags&8)?Surface::TonalLiquid:(flags&4)?Surface::Adaptive:Surface::Liquid;
+    auto surface=(flags&32)?Surface::TextRelief:(flags&16)?Surface::Lustre:(flags&8)?Surface::TonalLiquid:(flags&4)?Surface::Adaptive:Surface::Liquid;
     try{int result=s->frame({x,y,x+w,y+h},dpi,(flags&1)!=0,surface,bounds,count);*pixels=s->out.data();*rw=s->w;*rh=s->h;return result;}catch(...){return -1;}
 }
 extern "C" __declspec(dllexport) const unsigned char* LiquidInkMask(SamplingWindow* s,int* w,int* h) noexcept{

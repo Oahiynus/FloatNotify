@@ -36,19 +36,19 @@ internal sealed class LiquidLens : IDisposable
         }
         if(layoutDirty){
             var shapes=new List<Zone>();
-            Collect(hud?card.Hud:card.DialogFace,face,new Rect(0,0,face.ActualWidth,face.ActualHeight),shapes,card);
+            Collect(hud?card.Hud:card.DialogFace,face,new Rect(0,0,face.ActualWidth,face.ActualHeight),shapes,card,material==GlassMaterial.TextRelief,false);
             zones=shapes.ToArray();layoutDirty=false;
         }
         var origin=face.PointToScreen(new Point());
         int changed=LiquidFrame(lens,(int)Math.Round(origin.X),(int)Math.Round(origin.Y),width,height,(float)dpi.DpiScaleX,
-            (hud?1:0) | (material switch {GlassMaterial.Adaptive=>4,GlassMaterial.TonalLiquid=>8,GlassMaterial.Lustre=>16,_=>0}),zones,zones.Length,out var pixels,out int w,out int h);
+            (hud?1:0) | (material switch {GlassMaterial.Adaptive=>4,GlassMaterial.TonalLiquid=>8,GlassMaterial.Lustre=>16,GlassMaterial.TextRelief=>32,_=>0}),zones,zones.Length,out var pixels,out int w,out int h);
         if(changed<=0)return changed;
         if(image==null || image.PixelWidth!=w || image.PixelHeight!=h){
             image=new WriteableBitmap(w,h,96,96,PixelFormat.Bgra32,null);
             Brush=new ImageBrush(image){Stretch=Stretch.Fill};
         }
         image.WritePixels(new Int32Rect(0,0,w,h),pixels,checked(w*h*4),w*4);
-        if(material is GlassMaterial.Adaptive or GlassMaterial.TonalLiquid or GlassMaterial.Lustre){
+        if(material is GlassMaterial.Adaptive or GlassMaterial.TonalLiquid or GlassMaterial.Lustre or GlassMaterial.TextRelief){
             var mask=LiquidInkMask(lens,out int mw,out int mh);
             if(mask==IntPtr.Zero){InkMask=null;inkMask=null;return 1;}
             if(inkMask==null || inkMask.PixelWidth!=mw || inkMask.PixelHeight!=mh){
@@ -59,7 +59,7 @@ internal sealed class LiquidLens : IDisposable
         }
         return 1;
     }
-    static void Collect(DependencyObject node,FrameworkElement face,Rect clip,List<Zone> zones,Card card)
+    static void Collect(DependencyObject node,FrameworkElement face,Rect clip,List<Zone> zones,Card card,bool relief,bool option)
     {
         if(node is FrameworkElement element){
             if(!element.IsVisible || element.ActualWidth<=0 || element.ActualHeight<=0)return;
@@ -80,12 +80,29 @@ internal sealed class LiquidLens : IDisposable
             if(element is TextBlock text && text.Text.Length>0){
                 var end=text.ContentEnd.GetCharacterRect(System.Windows.Documents.LogicalDirection.Backward);
                 var start=text.ContentStart.GetCharacterRect(System.Windows.Documents.LogicalDirection.Forward);
+                if(relief && (option || text==card.Headline || text==card.DoneText)){
+                    // Wrapped option labels can leave most of their last line empty.
+                    var line=text.ContentStart;
+                    while(line!=null && line.CompareTo(text.ContentEnd)<0){
+                        var next=line.GetLineStartPosition(1);
+                        var first=line.GetCharacterRect(System.Windows.Documents.LogicalDirection.Forward);
+                        var last=(next??text.ContentEnd).GetCharacterRect(System.Windows.Documents.LogicalDirection.Backward);
+                        if(!first.IsEmpty && !last.IsEmpty){
+                            var span=Rect.Union(first,last);
+                            span.Offset(pos.X,pos.Y);
+                            span.Intersect(box);
+                            Add(span,3);
+                        }
+                        if(next==null || next.CompareTo(line)<=0)break;
+                        line=next;
+                    }
+                }
                 if(!start.IsEmpty && !end.IsEmpty && Math.Abs(end.Top-start.Top)<1)
                     box=new Rect(pos.X+Math.Min(end.X,start.X),pos.Y+start.Y,Math.Abs(end.X-start.X)+2,Math.Max(start.Height,end.Height));
                 box.Inflate(3,3);Add(box,0);
             }
         }
-        for(int i=0;i<VisualTreeHelper.GetChildrenCount(node);++i)Collect(VisualTreeHelper.GetChild(node,i),face,clip,zones,card);
+        for(int i=0;i<VisualTreeHelper.GetChildrenCount(node);++i)Collect(VisualTreeHelper.GetChild(node,i),face,clip,zones,card,relief,option || node is RadioButton);
     }
     public void PauseCapture(){
         if(lens!=IntPtr.Zero){LiquidDestroy(lens);lens=IntPtr.Zero;}

@@ -55,7 +55,7 @@ const row=(title,desc,control)=>'<div class="row"><div><strong>'+title+'</strong
 const toggle=(key,name,disabled=false)=>'<button aria-label="'+name+'" role="switch" class="switch" aria-checked="'+!!state.opts[key]+'" data-toggle="'+key+'" '+(disabled?'disabled':'')+'></button>';
 function appearance(){
  return head('弹窗外观','在下方预览材质和背景，或在桌面上试弹。')+
- '<div class="surface appearanceSettings">'+row('卡片材质','',segment('mat',{rim:'液态玻璃',tonal:'明暗液态玻璃',lustre:'澄光液态玻璃',adaptive:'自适应玻璃',soft:'毛玻璃'},state.mat))+'<div id="renderrow" '+(state.mat!=='rim'?'hidden':'')+'>'+row('折射方式','',segment('renderer',{pixels:'局部像素折射',system:'系统合成'},state.renderer))+'</div></div>'+
+ '<div class="surface appearanceSettings">'+row('卡片材质','',segment('mat',{rim:'液态玻璃',tonal:'明暗液态玻璃',relief:'轻映液态玻璃',lustre:'澄光液态玻璃',adaptive:'自适应玻璃',soft:'毛玻璃'},state.mat))+'<div id="renderrow" '+(state.mat!=='rim'?'hidden':'')+'>'+row('折射方式','',segment('renderer',{pixels:'局部像素折射',system:'系统合成'},state.renderer))+'</div></div>'+
  '<section class="previewPanel" aria-label="卡片预览"><div class="sectionhead previewHead"><h2>卡片预览</h2>'+segment('kind',{approval:labels.approval,question:labels.question,done:labels.done},state.kind)+'</div>'+
  '<div class="trywrap"><div class="stage"><iframe title="定稿卡片预览"></iframe></div><div class="footbar"><div class="toolbar"><label for="bg">预览背景</label><select id="bg"><option value="silk">彩色桌面</option><option value="paper">浅色文档</option><option value="editor">深色编辑器</option><option value="split">深浅窗口交界</option></select></div>'+button('trial',trialActive?'结束试弹':'3 秒后试弹','primary')+'</div><div class="subnote">点击后设置窗口会最小化，3 秒后卡片会出现在你正在使用的窗口上。</div></div></section>';}
 let updateInfo={phase:'idle',message:'',available:false};
@@ -198,7 +198,7 @@ bridge.addEventListener('message',({data})=>{
  trialActive=!!data.trial;
  state.about=data.about;state.connection=data.connection;state.changingCodex=data.changingCodex;state.retryCodex=data.retryCodex;
  state.opts=data.opts;state.visible=data.visible;state.events=data.events;state.revision=data.revision;
- state.mat=data.material==='Lustre'?'lustre':data.material==='Adaptive'?'adaptive':data.material==='TonalLiquid'?'tonal':data.material==='Frosted'?'soft':'rim';
+ state.mat=data.material==='TextRelief'?'relief':data.material==='Lustre'?'lustre':data.material==='Adaptive'?'adaptive':data.material==='TonalLiquid'?'tonal':data.material==='Frosted'?'soft':'rim';
  if(state.mat==='rim')state.renderer=data.material==='LiquidSystem'?'system':'pixels';
  if(!initialized){
    initialized=true;
@@ -234,7 +234,7 @@ document.addEventListener('click',e=>{
    if(d.field==='filter'){state.filter=d.val;paint();return;}
    if(d.field==='kind'){state.kind=d.val;appearanceControls();return;}
    let mat=d.field==='mat'?d.val:state.mat,renderer=d.field==='renderer'?d.val:state.renderer;
-   send('material',mat==='lustre'?'Lustre':mat==='adaptive'?'Adaptive':mat==='tonal'?'TonalLiquid':mat==='soft'?'Frosted':renderer==='system'?'LiquidSystem':'Liquid');return;
+   send('material',mat==='relief'?'TextRelief':mat==='lustre'?'Lustre':mat==='adaptive'?'Adaptive':mat==='tonal'?'TonalLiquid':mat==='soft'?'Frosted':renderer==='system'?'LiquidSystem':'Liquid');return;
  }
  switch(d.act){
    case 'retryCodex':send('toggle','codex',state.retryCodex);break;
