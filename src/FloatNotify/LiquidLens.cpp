@@ -20,6 +20,7 @@ float roundedDepth(float qx,float qy,float r){
     return r-std::hypot(std::max(0.f,qx),std::max(0.f,qy))-std::min(std::max(qx,qy),0.f);
 }
 float softAxis(float x){return 4.f*std::log1p(std::exp(std::clamp(x*.25f,-60.f,60.f)));}
+enum class Surface { Liquid, Adaptive, TonalLiquid };
 struct SamplingWindow;
 thread_local SamplingWindow* activeSample{};
 struct SamplingWindow {
@@ -29,7 +30,8 @@ struct SamplingWindow {
     int reason{-12};
     int sourceW{},sourceH{},w{},h{};
     float density{};
-    bool hud{},clear{},adaptive{};
+    bool hud{},needsLightInk{};
+    Surface surface{};
     std::vector<unsigned char> inkMask;
     int maskW{},maskH{};
     std::vector<Zone> zones;
@@ -97,21 +99,16 @@ struct SamplingWindow {
             float incidence=-.68f*nx-.73f*ny,front=std::max(0.f,incidence),back=std::max(0.f,-incidence);
             float lip=std::exp(-d/7),gloss=.83f*std::exp(-square(d-.9f)/2.3f)+.29f*std::exp(-d/6);
             float shine=std::clamp(gloss*(.12f+1.10f*std::pow(front,5.f)+.68f*std::pow(back,7.f))+.062f*front*front*front*lip*rim,0.f,.95f);
-            if(adaptive){
+            if(surface==Surface::Adaptive){
                 bend*=1.16f;
                 shine=.78f*shine+.14f*std::exp(-square(d-2.8f)/1.6f)*back*back;
-            }else if(clear){
-                // A second, narrow reflected band follows the inside of the bevel.
-                float inner=std::exp(-square(d-3.8f)/2.8f)*(.12f+.30f*back*back);
-                shine+=(1-shine)*inner;
-                bend*=1.20f;
             }
             float facing=-.68f*fx-.73f*fy;
             float shade=lip*(.023f+.11f*square(1-std::abs(incidence)))+.292f*(.18f+.82f*back)*lip*(1-lip)*rim+.075f*std::max(0.f,-facing);
             shine+=(1-shine)*(.52f*std::max(0.f,facing)+.14f*std::max(0.f,-facing));
             map[y*w+x]={std::clamp(x-density*(nx*bend+xx*.024f*tint+10*fx),0.f,float(w-1)),
                          std::clamp(y-density*(ny*bend+yy*.024f*tint+10*fy),0.f,float(h-1)),
-                         tint,rim,std::exp(-nearest/(clear?1250.f:288.f)),shine,shade};
+                         tint,rim,std::exp(-nearest/288.f),shine,shade};
         }
     }
     void blurPass(const Image& from,Image& to,int radius,bool vertical){
@@ -139,23 +136,24 @@ struct SamplingWindow {
             int nextX=std::min(1,w-1-ix),nextY=iy+1<h?w:0;
             float ax=m.x-ix,ay=m.y-iy;
             float diff=unit((.08f+(.025f+.065f*(paper+dark))*m.tint+(.31f+.53f*paper+.25f*dark)*m.ink)*(1-.18f*m.rim));
-            if(adaptive)diff=(.18f+.09f*m.tint+.48f*m.ink)*(1-.35f*m.rim);
+            if(surface==Surface::Adaptive)diff=(.18f+.09f*m.tint+.48f*m.ink)*(1-.35f*m.rim);
             float medium=2*diff*(1-diff),soft=diff*diff,sharp=1-medium-soft;
             auto p=farBlur[base];float local=.2126f*p.r+.7152f*p.g+.0722f*p.b;
             float milk;
-            if(adaptive){
+            if(surface==Surface::Adaptive){
                 milk=.012f+.016f*m.tint;
-            }else if(clear){
-                // Reveal the desktop between controls with a gradual lift behind dark text.
-                float veil=.035f+.24f*dark+.025f*m.tint;
-                float body=local+(248-local)*veil;
-                float protection=unit((185.f-14.f*dark-body)/std::max(35.f,248-body));
-                milk=veil+(1-veil)*protection*m.ink;
             }else{
                 float veil=.035f+.455f*dark-.010f*paper+(.025f+.010f*dark)*m.tint;
                 float light=local+(248-local)*veil,lack=185-light;
                 float lift=(lack+std::sqrt(lack*lack+36))*.5f/std::max(35.f,248-light);
                 milk=(veil+(1-veil)*(m.ink+.83f*dark*(1-m.ink))*std::min(.73f,lift))*(1-.115f*m.rim*(1-.75f*m.ink));
+                if(surface==Surface::TonalLiquid){
+                    // Keep the liquid bevel and scattering. Fade only its light veil over darker content.
+                    float u=unit((178.f-local)/62.f);
+                    float night=u*u*(3-2*u);
+                    float nightVeil=(.012f+.034f*m.tint)*(1-.115f*m.rim);
+                    milk+=(nightVeil-milk)*night;
+                }
             }
             auto channel=[&](const Image& buf,int k){
                 const auto* a=reinterpret_cast<const unsigned char*>(&buf[base]);
@@ -171,7 +169,8 @@ struct SamplingWindow {
             }
             dst[3]=255;
         }
-        if(adaptive){
+        if(surface!=Surface::Liquid){
+            needsLightInk=false;
             // Low-frequency illumination controls ink, so background text cannot speckle the glyphs.
             maskW=(w+7)/8;maskH=(h+7)/8;inkMask.resize(size_t(maskW)*maskH);
             for(int y=0;y<maskH;++y)for(int x=0;x<maskW;++x){
@@ -179,18 +178,20 @@ struct SamplingWindow {
                 const auto& optics=map[py*w+px];
                 const auto p=farBlur[int(optics.y)*w+int(optics.x)];
                 float level=.2126f*p.r+.7152f*p.g+.0722f*p.b;
-                inkMask[y*maskW+x]=(unsigned char)std::round(255*unit((144-level)/50));
+                auto coverage=(unsigned char)std::round(255*unit((144-level)/50));
+                inkMask[y*maskW+x]=coverage;
+                needsLightInk|=coverage>119; // First non-zero light-ink weight in AdaptiveInk.hlsl.
             }
         }
     }
-    int frame(RECT rect,float dpi,bool compact,bool clearFace,bool adaptiveFace,const Zone* bounds,int count){
+    int frame(RECT rect,float dpi,bool compact,Surface nextSurface,const Zone* bounds,int count){
         int sw=rect.right-rect.left,sh=rect.bottom-rect.top;
         if(sw<=0||sh<=0||sw>8192||sh>8192||dpi<=0||count<0||count>2048)return -1;
         float den=std::min(1.35f,dpi);
         int nw=std::max(1,(int)std::round(sw*den/dpi)),nh=std::max(1,(int)std::round(sh*den/dpi));
         if(size_t(nw)*nh>2000000)return -1;
         bool resize=w!=nw||h!=nh,move=sourceW!=sw||sourceH!=sh;
-        bool rebuild=resize||den!=density||compact!=hud||clearFace!=clear||adaptiveFace!=adaptive||count!=zones.size()||(count && std::memcmp(zones.data(),bounds,count*sizeof(Zone)));
+        bool rebuild=resize||den!=density||compact!=hud||nextSurface!=surface||count!=zones.size()||(count && std::memcmp(zones.data(),bounds,count*sizeof(Zone)));
         if(resize){
             w=nw;h=nh;size_t n=size_t(w)*h;
             for(auto buf:{&raw,&nearBlur,&farBlur,&scratch,&out})buf->resize(n);
@@ -202,7 +203,7 @@ struct SamplingWindow {
             if(!SetWindowPos(child,nullptr,0,0,sw,sh,SWP_NOACTIVATE|SWP_NOZORDER))return -1;
         }
         if(rebuild){
-            density=den;hud=compact;clear=clearFace;adaptive=adaptiveFace;zones.clear();if(count)zones.assign(bounds,bounds+count);configureMap();
+            density=den;hud=compact;surface=nextSurface;zones.clear();if(count)zones.assign(bounds,bounds+count);configureMap();
         }
         changed=rebuild;received=false;
         if(!capture.usable())return -11;
@@ -221,9 +222,11 @@ extern "C" __declspec(dllexport) void* LiquidCreate(HWND card,int w,int h) noexc
     return nullptr;
 }
 extern "C" __declspec(dllexport) int LiquidFrame(SamplingWindow* s,int x,int y,int w,int h,float dpi,int flags,const Zone* bounds,int count,void** pixels,int* rw,int* rh) noexcept{
-    try{int result=s->frame({x,y,x+w,y+h},dpi,(flags&1)!=0,(flags&2)!=0,(flags&4)!=0,bounds,count);*pixels=s->out.data();*rw=s->w;*rh=s->h;return result;}catch(...){return -1;}
+    auto surface=(flags&8)?Surface::TonalLiquid:(flags&4)?Surface::Adaptive:Surface::Liquid;
+    try{int result=s->frame({x,y,x+w,y+h},dpi,(flags&1)!=0,surface,bounds,count);*pixels=s->out.data();*rw=s->w;*rh=s->h;return result;}catch(...){return -1;}
 }
 extern "C" __declspec(dllexport) const unsigned char* LiquidInkMask(SamplingWindow* s,int* w,int* h) noexcept{
-    *w=s->maskW;*h=s->maskH;return s->inkMask.data();
+    *w=s->maskW;*h=s->maskH;
+    return s->surface==Surface::TonalLiquid && !s->needsLightInk ? nullptr : s->inkMask.data();
 }
 extern "C" __declspec(dllexport) void LiquidDestroy(SamplingWindow* s) noexcept{delete s;}

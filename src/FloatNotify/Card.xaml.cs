@@ -200,15 +200,15 @@ internal partial class Card : Window, IDisposable
         lens.Dispose();backdrop.Dispose();LiveBackdrop=false;
         GlassShell.Background=null;
     }
-    bool UsesPixels => material is GlassMaterial.Liquid or GlassMaterial.Clear or GlassMaterial.Adaptive;
+    bool UsesPixels => material is GlassMaterial.Liquid or GlassMaterial.TonalLiquid or GlassMaterial.Adaptive;
     void RestoreShell()
     {
-        if(material==GlassMaterial.Adaptive){
-            adaptiveInk??=new AdaptiveInk();
+        if(material is GlassMaterial.Adaptive or GlassMaterial.TonalLiquid){
+            adaptiveInk??=new AdaptiveInk(preserveDayInk:material==GlassMaterial.TonalLiquid);
             adaptiveInk.SetMask(null);
-            (urgent?DialogFace:Hud).Effect=adaptiveInk;
+            (urgent?DialogFace:Hud).Effect=material==GlassMaterial.Adaptive?adaptiveInk:null;
         }
-        GlassShell.Background=(Brush)FindResource(material switch {GlassMaterial.Adaptive=>"AdaptiveFace",GlassMaterial.Frosted=>"FrostedFace",GlassMaterial.Clear=>"ClearFace",_=>"LiquidFace"});
+        GlassShell.Background=(Brush)FindResource(material switch {GlassMaterial.Adaptive=>"AdaptiveFace",GlassMaterial.Frosted=>"FrostedFace",_=>"LiquidFace"});
         GlassShell.BorderThickness=new Thickness(1.3);
         GlassShell.Child.Visibility=Visibility.Visible;
     }
@@ -219,7 +219,11 @@ internal partial class Card : Window, IDisposable
             if(covered && lens.Brush!=null)return;
             int changed=lens.Draw(this,!urgent,material);
             if(changed>=0){
-                if(lens.InkMask is {} mask)adaptiveInk?.SetMask(mask);
+                if(changed>0 && adaptiveInk!=null){
+                    var mask=lens.InkMask;
+                    if(mask!=null)adaptiveInk.SetMask(mask);
+                    (urgent?DialogFace:Hud).Effect=mask!=null?adaptiveInk:null;
+                }
                 if(lens.Brush!=null && GlassShell.Background!=lens.Brush){
                     GlassShell.BorderThickness=new Thickness(0);
                     GlassShell.Child.Visibility=Visibility.Collapsed;
@@ -237,7 +241,7 @@ internal partial class Card : Window, IDisposable
             Audit.Write($"glass-pixels-unavailable reason={changed} fallback=system");
         }
         LiveBackdrop=backdrop.Place(Handle,GlassShell,material,!urgent);
-        if(!LiveBackdrop)GlassShell.Background=Paint(material switch {GlassMaterial.Adaptive=>"#EF28313C",GlassMaterial.Frosted=>"#EBF1F5F8",GlassMaterial.Clear=>"#CEDDEAF3",_=>"#DDF1F5F8"});
+        if(!LiveBackdrop)GlassShell.Background=Paint(material switch {GlassMaterial.Adaptive=>"#EF28313C",GlassMaterial.Frosted=>"#EBF1F5F8",_=>"#DDF1F5F8"});
     }
     public void ShowOfficialApproval(ApprovalDetails request)
     {

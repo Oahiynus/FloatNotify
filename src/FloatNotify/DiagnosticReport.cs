@@ -9,7 +9,7 @@ internal static class DiagnosticReport
         "desktop" or "notification"=>"桌面日志", "session"=>"会话记录", "native"=>"原生审批表单", "hook"=>"Codex 官方审批 Hook", _=>"未记录"
     };
     internal static string MaterialName(string value) => value switch {
-        "Adaptive"=>"自适应玻璃 · 局部像素折射", "Clear"=>"清透玻璃 · 局部像素折射", "Liquid"=>"液态玻璃 · 局部像素折射", "LiquidSystem"=>"液态玻璃 · 系统合成", "Frosted"=>"毛玻璃", _=>"未记录"
+        "Adaptive"=>"自适应玻璃 · 局部像素折射", "TonalLiquid"=>"明暗液态玻璃 · 局部像素折射", "Clear"=>"清透玻璃（旧版） · 局部像素折射", "Liquid"=>"液态玻璃 · 局部像素折射", "LiquidSystem"=>"液态玻璃 · 系统合成", "Frosted"=>"毛玻璃", _=>"未记录"
     };
 
     public static string HookRegistration(string home,string executable,string eventName="Stop")=>InspectHook(home,executable,eventName).Text;

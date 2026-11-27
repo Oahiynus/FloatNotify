@@ -11,9 +11,13 @@ internal sealed class AdaptiveInk : ShaderEffect
     static readonly DependencyProperty InputProperty=RegisterPixelShaderSamplerProperty("Input",typeof(AdaptiveInk),0);
     static readonly DependencyProperty MaskProperty=RegisterPixelShaderSamplerProperty("Mask",typeof(AdaptiveInk),1,SamplingMode.Bilinear);
 
+    static readonly DependencyProperty DayGainProperty=DependencyProperty.Register("DayGain",typeof(double),typeof(AdaptiveInk),
+        new UIPropertyMetadata(0.90,PixelShaderConstantCallback(0)));
     static readonly ImageBrush DarkFallback=new(BitmapSource.Create(1,1,96,96,PixelFormats.Gray8,null,new byte[]{255},1));
-    internal AdaptiveInk(){
+    internal AdaptiveInk(bool preserveDayInk){
         PixelShader=Shader;
+        if(preserveDayInk)SetValue(DayGainProperty,1.0);
+        UpdateShaderValue(DayGainProperty);
         UpdateShaderValue(InputProperty);
         UpdateShaderValue(MaskProperty);
     }

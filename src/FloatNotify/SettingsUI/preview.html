@@ -117,7 +117,7 @@ html:has(#glass-answer-type-trial){scrollbar-gutter:stable}
   <feColorMatrix in="SourceGraphic" values=".05984 -1.14432 -.11552 0 1.14  -.34016 -.74432 -.11552 0 1.14  -.34016 -1.14432 .28448 0 1.14  0 0 0 1 0" result="light"/>
   <feColorMatrix in="SourceGraphic" values=".9 0 0 0 0  0 .9 0 0 0  0 0 .9 0 0  0 0 0 1 0" result="dark"/>
   <feComposite in="light" in2="polarity" operator="in" result="lit"/>
-  <feComposite in="dark" in2="polarity" operator="out" result="unlit"/>
+  <feComposite id="day-ink" in="dark" in2="polarity" operator="out" result="unlit"/>
   <feComposite in="lit" in2="unlit" operator="arithmetic" k2="1" k3="1"/>
  </filter>
 </defs></svg>
@@ -370,9 +370,9 @@ function bezel(){
  const crystal=material!=="soft",roll=Math.min(crystal?26:24,ch*.27);
  const softAxis=v=>Math.log1p(Math.exp(clip(v/4,-60,60)))*4;
  const boxes=crystal?textZones():[];
- const clearerEdge=material==="rim"||material==="clear"||material==="adaptive",rimWidth=kind==="done"?8:12;
+ const clearerEdge=material==="rim"||material==="tonal"||material==="adaptive",rimWidth=kind==="done"?8:12;
  map={x:new Float32Array(n),y:new Float32Array(n),edge:new Float32Array(n),tint:new Float32Array(n),gloss:new Float32Array(n),lip:new Float32Array(n),type:new Float32Array(n),rim:new Float32Array(n)};
- map.innerGlint=(material==="clear"||material==="adaptive")?new Float32Array(n):null;
+ map.innerGlint=material==="adaptive"?new Float32Array(n):null;
  map.fields=controlRims(w,h);
  output=lc.createImageData(w,h);
  for(let y=0,i=0;y<h;y++)for(let x=0;x<w;x++,i++){
@@ -386,7 +386,7 @@ function bezel(){
    const u=clearerEdge?clip(1-depth/rimWidth,0,1):0;
    const rim=u*u*(3-2*u);
    map.rim[i]=rim;
-   map.edge[i]=slope*slope*(.62+.38*slope)*(1+.085*rim)*(material==="clear"?1.20:material==="adaptive"?1.16:1);
+   map.edge[i]=slope*slope*(.62+.38*slope)*(1+.085*rim)*(material==="adaptive"?1.16:1);
    map.tint[i]=1-slope*slope;
    if(!crystal){
      map.gloss[i]=.69*Math.exp(-depth/2.2)+.16*slope*slope;map.lip[i]=.22*slope*slope;
@@ -395,7 +395,7 @@ function bezel(){
    // A narrow directional glint sits on the same continuous shoulder as the longer refractive falloff.
    map.gloss[i]=.83*Math.exp(-((depth-.9)**2)/2.3)+.29*Math.exp(-depth/6);
    map.lip[i]=Math.exp(-depth/7);
-   if(map.innerGlint)map.innerGlint[i]=material==="adaptive"?Math.exp(-((depth-2.8)**2)/1.6):Math.exp(-((depth-3.8)**2)/2.8);
+   if(map.innerGlint)map.innerGlint[i]=Math.exp(-((depth-2.8)**2)/1.6);
    const cx=xx+cw/2,cy=yy+ch/2;
    let nearest=1e6;
    for(const b of boxes){
@@ -403,7 +403,7 @@ function bezel(){
      nearest=Math.min(nearest,dx*dx+dy*dy);
      if(nearest===0)break;
    }
-   map.type[i]=Math.exp(-nearest/(material==="clear"?2*25*25:2*12*12));
+   map.type[i]=Math.exp(-nearest/(2*12*12));
  }
 }
 function fitFooter(){
@@ -486,11 +486,10 @@ function draw(){
      if(material==="adaptive"){
        milk=.012+.016*t;
        reflection=.78*reflection+.14*map.innerGlint[i]*back*back;
-     }else if(material==="clear"){
-       const clearBase=.035+(dark ? .24 : 0)+.025*t;
-       const body=localY+(248-localY)*clearBase;
-       milk=clearBase+(1-clearBase)*clip(((dark ? 171 : 185)-body)/Math.max(35,248-body),0,1)*protect;
-       reflection+=(1-reflection)*map.innerGlint[i]*(.12+.30*back*back);
+     }else if(material==="tonal"){
+       const u=clip((178-localY)/62,0,1),night=u*u*(3-2*u);
+       const nightVeil=(.012+.034*t)*(1-.115*rim);
+       milk+=(nightVeil-milk)*night;
      }
      shade=lip*(.023+.11*(1-Math.abs(incidence))**2)+.073*(.18+.82*back)*shoulder*rim;
    }else{
@@ -514,7 +513,7 @@ function draw(){
    dst[i*4+3]=255;
  }
  lc.putImageData(output,0,0);
- if(material==="adaptive")updateInk(ox,oy,w,h,bw,bh);
+ if(material==="adaptive"||material==="tonal")updateInk(ox,oy,w,h,bw,bh);
  root.dataset.ready="";
 }
 const inkCanvas=document.createElement("canvas");
@@ -523,11 +522,16 @@ function updateInk(ox,oy,w,h,bw,bh){
  const mw=Math.ceil(w/8),mh=Math.ceil(h/8);
  inkCanvas.width=mw;inkCanvas.height=mh;
  const ctx=inkCanvas.getContext("2d"),mask=ctx.createImageData(mw,mh);
+ let needsLightInk=material==="adaptive";
  for(let y=0;y<mh;y++)for(let x=0;x<mw;x++){
    const sx=clip(ox+Math.floor((x+.5)*w/mw),0,bw-1),sy=clip(oy+Math.floor((y+.5)*h/mh),0,bh-1);
    const i=(sy*bw+sx)*4,level=.2126*soft[i]+.7152*soft[i+1]+.0722*soft[i+2];
-   mask.data[(y*mw+x)*4+3]=255*clip((144-level)/50,0,1);
+   const coverage=Math.round(255*clip((144-level)/50,0,1));
+   mask.data[(y*mw+x)*4+3]=coverage;
+   if(coverage>119)needsLightInk=true;
  }
+ root.classList.toggle("adaptive",needsLightInk);
+ if(!needsLightInk)return;
  ctx.putImageData(mask,0,0);
  const panel=card.querySelector('[data-show="'+kind+'"]').getBoundingClientRect(),face=card.getBoundingClientRect();
  if(panel.width<=0||panel.height<=0)return;
@@ -564,6 +568,7 @@ window.renderPreview=({kind:nextKind,mat:nextMaterial,background:nextScene,rende
  root.dataset.material=material==="soft"?"soft":"crystal";
  root.classList.toggle("system",system);
  root.classList.toggle("adaptive",material==="adaptive");
+ document.getElementById("day-ink").setAttribute("in",material==="tonal"?"SourceGraphic":"dark");
  resetPreview();size(true,backgroundChanged);
 };
 const ro=new ResizeObserver(()=>size());ro.observe(stage);ro.observe(card);

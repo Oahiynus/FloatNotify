@@ -170,7 +170,6 @@ internal static class Checks
         TryDownload(digest+"  Other.exe",bytes,false);
         TryDownload(new string('x',4096),bytes,false);
         check(typeof(UpdateInstaller).Assembly.GetManifestResourceNames().Contains("FloatNotify.InstallUpdate.ps1"),"update helper included in package");
-        check(DiagnosticReport.MaterialName("Clear").Contains("清透玻璃"),"new card material is identifiable in diagnostics");
     }
     static void CheckQuestionIdentity(Guid chat,Guid turn,Action<bool,string> check)
     {
@@ -496,6 +495,10 @@ internal static class Checks
         using var question=new Card(new(Kind.Question,Guid.Empty,"preview",Source:"preview"),"预览",()=>{},()=>{},()=>false);
         using var done=new Card(new(Kind.Done,Guid.Empty,"preview",Source:"preview"),"预览",()=>{},()=>{},()=>false);
         bool Visible(System.Windows.UIElement c)=>c.Visibility==System.Windows.Visibility.Visible;
+        check(GlassPreference.Parse("clear")==GlassMaterial.Liquid && GlassPreference.Parse("adaptive")==GlassMaterial.Adaptive &&
+            GlassPreference.Parse("tonal-liquid")==GlassMaterial.TonalLiquid,"retired preference uses liquid and the two adaptive choices stay distinct");
+        done.ApplyMaterial(GlassMaterial.TonalLiquid);
+        check(done.Hud.Effect==null && DiagnosticReport.MaterialName("TonalLiquid").Contains("明暗液态玻璃"),"tonal liquid starts with original ink until it samples a dark backdrop");
         done.ApplyMaterial(GlassMaterial.Adaptive);
         check(done.Hud.Effect is AdaptiveInk && DiagnosticReport.MaterialName("Adaptive").Contains("自适应玻璃"),"adaptive HUD loads its shader before the first backdrop sample");
         done.ApplyMaterial(GlassMaterial.Liquid);
