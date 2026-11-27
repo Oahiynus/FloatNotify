@@ -2,9 +2,9 @@
 
 浮笺是 Windows 上的 Codex 桌面提醒工具。切到别的窗口写东西时，Codex 的回复完成、提问和人工审批仍会出现在眼前。卡片弹出时，键盘焦点留在你正在输入的窗口。
 
-**版本 1.0.5 · Windows x64 · 开发者 Oahiynus**　[查看本版更新](docs/releases/1.0.5.md)
+**版本 1.0.6 · Windows x64 · 开发者 Oahiynus**　[查看本版更新](docs/releases/1.0.6.md)
 
-**下载**　[Windows x64 安装包](https://github.com/Oahiynus/FloatNotify/releases/download/v1.0.5/FloatNotify-1.0.5-windows-x64-Setup.exe) · [.sha256 校验文件](https://github.com/Oahiynus/FloatNotify/releases/download/v1.0.5/FloatNotify-1.0.5-windows-x64-Setup.exe.sha256) · [v1.0.5 Release](https://github.com/Oahiynus/FloatNotify/releases/tag/v1.0.5)
+**下载**　[Windows x64 安装包](https://github.com/Oahiynus/FloatNotify/releases/download/v1.0.6/FloatNotify-1.0.6-windows-x64-Setup.exe) · [.sha256 校验文件](https://github.com/Oahiynus/FloatNotify/releases/download/v1.0.6/FloatNotify-1.0.6-windows-x64-Setup.exe.sha256) · [v1.0.6 Release](https://github.com/Oahiynus/FloatNotify/releases/tag/v1.0.6)
 
 ![三条虚构对话同时收到提醒。完成卡保持完整，问答卡露出对话名，最前面的审批卡显示请求和操作按钮。](docs/images/notification-stack.png)
 
@@ -12,14 +12,14 @@
 
 ## 安装与首次接入
 
-1. 将 `FloatNotify-1.0.5-windows-x64-Setup.exe` 和同名的 `.sha256` 文件放在同一目录，按[版本说明](docs/releases/1.0.5.md#校验安装包)核对安装包。
+1. 将 `FloatNotify-1.0.6-windows-x64-Setup.exe` 和同名的 `.sha256` 文件放在同一目录，按[版本说明](docs/releases/1.0.6.md#校验安装包)核对安装包。
 2. 双击安装包，按当前 Windows 用户安装。浮笺需要 **.NET 10 桌面运行时（x64）** 和 **Microsoft Edge WebView2 Evergreen 运行时**。缺少运行时时，安装器会提供相应的微软下载页。装好运行时后，再次运行安装包。
 3. 如果已经使用过本机 Codex，安装时勾选「接入本机 Codex」。打开 Codex 的「设置 → Hooks」，核对 `Stop` 和 `PermissionRequest` 指向本次安装的 `FloatNotify.exe`，并确认信任。如果之后才开始使用 Codex，可在首次启动 Codex 后，从 Windows 开始菜单选择「FloatNotify → 接入 Codex」。
 4. 从开始菜单打开「浮笺」，进入「弹窗外观」，选择一种提醒并点击「3 秒后试弹」。设置窗口会最小化，三秒后卡片出现在当前应用上。关闭设置窗口后，浮笺继续在系统托盘运行。
 
 在浮笺的「客户端 → Codex」页，可以用「启用 Codex 提醒」断开或重新连接。关闭会移除指向本安装的两个 Hook，重新开启会自动添加。若页面提示需要信任，请在 Codex 的 Hooks 设置中确认。三类提醒可以分别开关。
 
-在「通用设置 → 关于」点击「检查更新」。发现新版后，点「更新并重启」，浮笺会下载安装包、校验 SHA-256，并在原安装目录完成更新。若想先了解改动，可点「版本说明」。使用 v1.0.5 正式版时，「查看新版」会打开 GitHub 发布页。
+在「通用设置 → 关于」点击「检查更新」。发现新版后，点「更新并重启」，浮笺会下载安装包、校验 SHA-256，并在原安装目录完成更新，然后重新打开浮笺。若想先了解改动，可点「版本说明」。从 v1.0.5 正式版首次升级时，点「查看新版」打开 GitHub 发布页，手动下载并运行 v1.0.6 安装包。
 
 ## 收到提醒时
 
