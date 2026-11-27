@@ -111,7 +111,7 @@ struct SamplingWindow {
             shine+=(1-shine)*(.52f*std::max(0.f,facing)+.14f*std::max(0.f,-facing));
             map[y*w+x]={std::clamp(x-density*(nx*bend+xx*.024f*tint+10*fx),0.f,float(w-1)),
                          std::clamp(y-density*(ny*bend+yy*.024f*tint+10*fy),0.f,float(h-1)),
-                         tint,rim,std::exp(-nearest/288.f),shine,shade,surface==Surface::Liquid?0.f:std::exp(-controlDistance/72.f)};
+                         tint,rim,std::exp(-nearest/288.f),shine,shade,surface==Surface::Lustre?std::exp(-controlDistance/72.f):0.f};
         }
     }
     void blurPass(const Image& from,Image& to,int radius,bool vertical){
@@ -185,7 +185,8 @@ struct SamplingWindow {
         int nearRadius=std::max(1,(int)std::round(2.2f*density)),farRadius=std::max(1,(int)std::round(6*density));
         blurPass(raw,scratch,nearRadius,false);blurPass(scratch,nearBlur,nearRadius,true);
         blurPass(nearBlur,scratch,farRadius,false);blurPass(scratch,farBlur,farRadius,true);
-        if(surface!=Surface::Liquid)sampleAmbient();
+        const bool lustre=surface==Surface::Lustre;
+        if(lustre)sampleAmbient();
         float luminance=0;int samples=0;
         for(size_t i=0;i<raw.size();i+=73){auto p=raw[i];luminance+=.2126f*p.r+.7152f*p.g+.0722f*p.b;++samples;}
         luminance/=samples;
@@ -196,10 +197,10 @@ struct SamplingWindow {
             float ax=m.x-ix,ay=m.y-iy;
             float diff=unit((.08f+(.025f+.065f*(paper+dark))*m.tint+(.31f+.53f*paper+.25f*dark)*m.ink)*(1-.18f*m.rim));
             if(surface==Surface::Adaptive)diff=(.18f+.09f*m.tint+.48f*m.ink)*(1-.35f*m.rim);
-            const auto ground=surface==Surface::Liquid?Pixel{}:ambient[base];
-            float night=surface==Surface::Liquid?0.f:nightWeight(luma(ground));
+            const auto ground=lustre?ambient[base]:Pixel{};
+            float night=lustre?nightWeight(luma(ground)):0.f;
             float protect=night*std::max(m.ink,m.control);
-            if(surface==Surface::Lustre)diff*=1-.64f*night*(1-std::max(m.ink,m.control));
+            if(lustre)diff*=1-.64f*night*(1-std::max(m.ink,m.control));
             float medium=2*diff*(1-diff),soft=diff*diff,sharp=1-medium-soft;
             auto p=farBlur[base];float local=.2126f*p.r+.7152f*p.g+.0722f*p.b;
             float milk;
@@ -210,9 +211,9 @@ struct SamplingWindow {
                 float light=local+(248-local)*veil,lack=185-light;
                 float lift=(lack+std::sqrt(lack*lack+36))*.5f/std::max(35.f,248-light);
                 milk=(veil+(1-veil)*(m.ink+.83f*dark*(1-m.ink))*std::min(.73f,lift))*(1-.115f*m.rim*(1-.75f*m.ink));
-                if(surface==Surface::TonalLiquid || surface==Surface::Lustre){
-                    float nightVeil=(surface==Surface::Lustre?.002f+.005f*m.tint:.012f+.034f*m.tint)*(1-.115f*m.rim);
-                    milk+=(nightVeil-milk)*night;
+                if(surface==Surface::TonalLiquid || lustre){
+                    float nightVeil=(lustre?.002f+.005f*m.tint:.012f+.034f*m.tint)*(1-.115f*m.rim);
+                    milk+=(nightVeil-milk)*(lustre?night:nightWeight(local));
                 }
             }
             auto channel=[&](const Image& buf,int k){
@@ -236,11 +237,12 @@ struct SamplingWindow {
         }
         if(surface!=Surface::Liquid){
             needsLightInk=false;
-            // Low-frequency illumination controls ink, so background text cannot speckle the glyphs.
+            // Lustre follows the background fill. Adaptive and TonalLiquid follow the refracted sample.
             maskW=(w+7)/8;maskH=(h+7)/8;inkMask.resize(size_t(maskW)*maskH);
             for(int y=0;y<maskH;++y)for(int x=0;x<maskW;++x){
                 int px=(2*x+1)*w/(2*maskW),py=(2*y+1)*h/(2*maskH);
-                float level=luma(ambient[py*w+px]);
+                const auto& optics=map[py*w+px];
+                float level=lustre?luma(ambient[py*w+px]):luma(farBlur[int(optics.y)*w+int(optics.x)]);
                 auto coverage=(unsigned char)std::round(255*unit((144-level)/50));
                 inkMask[y*maskW+x]=coverage;
                 needsLightInk|=coverage>119; // First non-zero light-ink weight in AdaptiveInk.hlsl.

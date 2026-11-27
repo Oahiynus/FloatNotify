@@ -388,7 +388,7 @@ function textZones(){
 // The same bend displaces the backdrop sample and orients its directional glint.
 function controlRims(w,h){
  const dx=new Float32Array(w*h),dy=new Float32Array(w*h),origin=card.getBoundingClientRect();
- const protectedArea=adaptsInk()?new Float32Array(w*h):null;
+ const protectedArea=material==="lustre"?new Float32Array(w*h):null;
  const panel=card.querySelector('[data-show="'+kind+'"]');
  const selectors=".lens-answers label,.lens-editor,.glass-action"+(protectedArea?",.lens-terminal":"");
  for(const el of panel.querySelectorAll(selectors)){
@@ -499,8 +499,8 @@ function draw(){
  const w=lens.width,h=lens.height,bw=wall.width,bh=wall.height,dst=output.data;
  const crystal=material!=="soft",doc=scene==="paper",dark=scene==="editor",done=kind==="done";
  const strength=(crystal?(done?16:27):(done?11:19))*scale;
- const adapts=adaptsInk();
- if(adapts && !ambient)ambient=ambientBackdrop();
+ const lustre=material==="lustre";
+ if(lustre && !ambient)ambient=ambientBackdrop();
  const fields=map.fields,fieldBend=(crystal?10:7)*scale;
  const tint=dark ? .78:doc ? .60:.53;
  const ox=Math.round(left*scale),oy=Math.round(top*scale),milkColor=[246,248,250];
@@ -520,9 +520,10 @@ function draw(){
    const i01=(Math.min(iy+1,bh-1)*bw+ix)*4,i11=i01+(i10-i00);
    const w00=(1-ax)*(1-ay),w10=ax*(1-ay),w01=(1-ax)*ay,w11=ax*ay;
    const protect=map.type[i],rim=map.rim[i];
-   const groundY=adapts ? .2126*ambient[i00]+.7152*ambient[i00+1]+.0722*ambient[i00+2]:255;
+   const localY=.2126*soft[i00]+.7152*soft[i00+1]+.0722*soft[i00+2];
+   const groundY=lustre ? .2126*ambient[i00]+.7152*ambient[i00+1]+.0722*ambient[i00+2]:localY;
    const u=clip((178-groundY)/62,0,1),night=u*u*(3-2*u);
-   const control=adapts?Math.max(protect,fields.protectedArea[i]):0;
+   const control=lustre?Math.max(protect,fields.protectedArea[i]):0;
    let diffusion=material==="adaptive"?(.18+.09*t+.48*protect)*(1-.35*rim):crystal?
      (.08+(doc||dark ? .09:.025)*t+(doc ? .84 : dark ? .56 : .31)*protect)*(1-.18*rim):
      .11+.87*t;
@@ -532,7 +533,6 @@ function draw(){
    const front=Math.max(0,incidence),back=Math.max(0,-incidence);
    let milk=(dark ? .31:.17)+t*tint;
    let reflection,shade;
-   const localY=.2126*soft[i00]+.7152*soft[i00+1]+.0722*soft[i00+2];
    if(crystal){
      const veil=dark ? .49:doc ? .025:.035;
      const base=veil+t*(dark ? .035:.025);
@@ -576,19 +576,19 @@ function draw(){
    dst[i*4+3]=255;
  }
  lc.putImageData(output,0,0);
- if(adapts)updateInk(ox,oy,w,h,bw,bh);
+ if(adaptsInk())updateInk(ox,oy,w,h,bw,bh,lustre?ambient:soft);
  root.dataset.ready="";
 }
 const inkCanvas=document.createElement("canvas");
 const inkFilter=document.getElementById("ink-illumination");
-function updateInk(ox,oy,w,h,bw,bh){
+function updateInk(ox,oy,w,h,bw,bh,illumination){
  const mw=Math.ceil(w/8),mh=Math.ceil(h/8);
  inkCanvas.width=mw;inkCanvas.height=mh;
  const ctx=inkCanvas.getContext("2d"),mask=ctx.createImageData(mw,mh);
  let needsLightInk=material==="adaptive";
  for(let y=0;y<mh;y++)for(let x=0;x<mw;x++){
    const sx=clip(ox+Math.floor((x+.5)*w/mw),0,bw-1),sy=clip(oy+Math.floor((y+.5)*h/mh),0,bh-1);
-   const i=(sy*bw+sx)*4,level=.2126*ambient[i]+.7152*ambient[i+1]+.0722*ambient[i+2];
+   const i=(sy*bw+sx)*4,level=.2126*illumination[i]+.7152*illumination[i+1]+.0722*illumination[i+2];
    const coverage=Math.round(255*clip((144-level)/50,0,1));
    mask.data[(y*mw+x)*4+3]=coverage;
    if(coverage>119)needsLightInk=true;
@@ -631,7 +631,7 @@ window.renderPreview=({kind:nextKind,mat:nextMaterial,background:nextScene,rende
  root.dataset.material=material==="soft"?"soft":"crystal";
  root.classList.toggle("system",system);
  root.classList.toggle("adaptive",material==="adaptive");
- document.getElementById("day-ink").setAttribute("in",material==="adaptive"?"dark":"SourceGraphic");
+ document.getElementById("day-ink").setAttribute("in",material==="tonal"||material==="lustre"?"SourceGraphic":"dark");
  resetPreview();size(true,backgroundChanged);
 };
 const ro=new ResizeObserver(()=>size());ro.observe(stage);ro.observe(card);
