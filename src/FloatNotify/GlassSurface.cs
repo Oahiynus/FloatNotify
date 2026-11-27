@@ -6,7 +6,7 @@ using Point = System.Windows.Point;
 
 namespace FloatNotify;
 
-internal enum GlassMaterial { Liquid, LiquidSystem, Frosted, Clear }
+internal enum GlassMaterial { Liquid, LiquidSystem, Frosted, Clear, Adaptive }
 
 internal static class GlassPreference
 {
@@ -14,14 +14,14 @@ internal static class GlassPreference
     public static GlassMaterial Read()
     {
         try { return File.Exists(path) ? File.ReadAllText(path).Trim() switch {
-            "clear"=>GlassMaterial.Clear,"frosted"=>GlassMaterial.Frosted,"liquid-system"=>GlassMaterial.LiquidSystem,_=>GlassMaterial.Liquid
+            "adaptive"=>GlassMaterial.Adaptive,"clear"=>GlassMaterial.Clear,"frosted"=>GlassMaterial.Frosted,"liquid-system"=>GlassMaterial.LiquidSystem,_=>GlassMaterial.Liquid
         } : GlassMaterial.Liquid; }
         catch(Exception e) when(e is IOException or UnauthorizedAccessException){return GlassMaterial.Liquid;}
     }
     public static void Write(GlassMaterial material)
     {
         Directory.CreateDirectory(Audit.Folder);
-        File.WriteAllText(path+".tmp",material switch {GlassMaterial.Clear=>"clear",GlassMaterial.Frosted=>"frosted",GlassMaterial.LiquidSystem=>"liquid-system",_=>"liquid"});
+        File.WriteAllText(path+".tmp",material switch {GlassMaterial.Adaptive=>"adaptive",GlassMaterial.Clear=>"clear",GlassMaterial.Frosted=>"frosted",GlassMaterial.LiquidSystem=>"liquid-system",_=>"liquid"});
         File.Move(path+".tmp",path,true);
     }
 }

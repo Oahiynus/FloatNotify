@@ -14,7 +14,7 @@
     <Copyright>Copyright (c) 2026 Oahiynus</Copyright>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
   </PropertyGroup>
-  <Target Name="BuildGlassBackdrop" BeforeTargets="PrepareForBuild" Inputs="GlassBackdrop.cpp;LiquidLens.cpp;GlassCapture.h;BuildGlass.cmd" Outputs="$(IntermediateOutputPath)glass\GlassBackdrop.dll">
+  <Target Name="BuildGlassBackdrop" BeforeTargets="PrepareForBuild" Inputs="GlassBackdrop.cpp;LiquidLens.cpp;GlassCapture.h;AdaptiveInk.hlsl;BuildGlass.cmd" Outputs="$(IntermediateOutputPath)glass\GlassBackdrop.dll;$(IntermediateOutputPath)glass\AdaptiveInk.ps">
     <Exec Command="&quot;$(MSBuildProjectDirectory)\BuildGlass.cmd&quot; &quot;$(MSBuildProjectDirectory)\$(IntermediateOutputPath)glass&quot;" />
   </Target>
   <ItemGroup>
@@ -23,6 +23,7 @@
     <Content Include="SettingsUI\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\LICENSE;..\..\THIRD-PARTY-NOTICES.md" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\Notices\*.txt" Link="Notices\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)glass\AdaptiveInk.ps" LogicalName="FloatNotify.AdaptiveInk.ps" />
     <EmbeddedResource Include="InstallUpdate.ps1" LogicalName="FloatNotify.InstallUpdate.ps1" />
     <Using Include="System.IO" />
     <None Update="Register.ps1" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

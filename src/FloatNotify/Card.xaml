@@ -5,6 +5,7 @@
  TextOptions.TextFormattingMode="Display" UseLayoutRounding="True" SnapsToDevicePixels="True">
  <Window.Resources>
   <LinearGradientBrush x:Key="LiquidFace" StartPoint="0,0" EndPoint=".6,1"><GradientStop Color="#68F7FAFD"/><GradientStop Color="#60F1F6FA" Offset=".48"/><GradientStop Color="#60F5F9FC" Offset="1"/></LinearGradientBrush>
+  <SolidColorBrush x:Key="AdaptiveFace" Color="#C8252D38"/>
   <LinearGradientBrush x:Key="ClearFace" StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#9BE8F3FF"/><GradientStop Color="#88E7EDF3" Offset=".52"/><GradientStop Color="#AAF0F6FC" Offset="1"/></LinearGradientBrush>
   <LinearGradientBrush x:Key="FrostedFace" StartPoint="0,0" EndPoint=".6,1"><GradientStop Color="#C7F8FAFC"/><GradientStop Color="#B4EDF2F7" Offset=".58"/><GradientStop Color="#C2F5F8FA" Offset="1"/></LinearGradientBrush>
   <LinearGradientBrush x:Key="Rim" StartPoint=".12,0" EndPoint=".86,1"><GradientStop Color="#F9FFFFFF"/><GradientStop Color="#90FFFFFF" Offset=".19"/><GradientStop Color="#6A718695" Offset=".53"/><GradientStop Color="#EEFFFFFF" Offset=".89"/><GradientStop Color="#A9FFFFFF" Offset="1"/></LinearGradientBrush>

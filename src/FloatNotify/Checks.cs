@@ -496,6 +496,10 @@ internal static class Checks
         using var question=new Card(new(Kind.Question,Guid.Empty,"preview",Source:"preview"),"预览",()=>{},()=>{},()=>false);
         using var done=new Card(new(Kind.Done,Guid.Empty,"preview",Source:"preview"),"预览",()=>{},()=>{},()=>false);
         bool Visible(System.Windows.UIElement c)=>c.Visibility==System.Windows.Visibility.Visible;
+        done.ApplyMaterial(GlassMaterial.Adaptive);
+        check(done.Hud.Effect is AdaptiveInk && DiagnosticReport.MaterialName("Adaptive").Contains("自适应玻璃"),"adaptive HUD loads its shader before the first backdrop sample");
+        done.ApplyMaterial(GlassMaterial.Liquid);
+        check(done.Hud.Effect==null,"restoring original glass restores its original ink");
         foreach (var card in new[] { permission, question })
         {
             check(!card.ShowActivated && card.Headline.Focusable &&

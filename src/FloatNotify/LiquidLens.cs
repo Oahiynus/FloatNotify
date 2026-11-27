@@ -17,13 +17,14 @@ internal sealed class LiquidLens : IDisposable
     readonly record struct Zone(float Left,float Top,float Right,float Bottom,int Kind);
 
     IntPtr lens;
-    WriteableBitmap? image;
+    WriteableBitmap? image,inkMask;
+    public ImageBrush? InkMask { get; private set; }
     Zone[] zones=[];
     bool layoutDirty=true;
     public ImageBrush? Brush { get; private set; }
     public void InvalidateLayout() => layoutDirty=true;
 
-    public int Draw(Card card, bool hud, bool clear)
+    public int Draw(Card card, bool hud, GlassMaterial material)
     {
         var face=card.GlassShell;
         var dpi=VisualTreeHelper.GetDpi(face);
@@ -40,13 +41,21 @@ internal sealed class LiquidLens : IDisposable
         }
         var origin=face.PointToScreen(new Point());
         int changed=LiquidFrame(lens,(int)Math.Round(origin.X),(int)Math.Round(origin.Y),width,height,(float)dpi.DpiScaleX,
-            (hud?1:0) | (clear?2:0),zones,zones.Length,out var pixels,out int w,out int h);
+            (hud?1:0) | (material==GlassMaterial.Clear?2:0) | (material==GlassMaterial.Adaptive?4:0),zones,zones.Length,out var pixels,out int w,out int h);
         if(changed<=0)return changed;
         if(image==null || image.PixelWidth!=w || image.PixelHeight!=h){
             image=new WriteableBitmap(w,h,96,96,PixelFormat.Bgra32,null);
             Brush=new ImageBrush(image){Stretch=Stretch.Fill};
         }
         image.WritePixels(new Int32Rect(0,0,w,h),pixels,checked(w*h*4),w*4);
+        if(material==GlassMaterial.Adaptive){
+            var mask=LiquidInkMask(lens,out int mw,out int mh);
+            if(inkMask==null || inkMask.PixelWidth!=mw || inkMask.PixelHeight!=mh){
+                inkMask=new WriteableBitmap(mw,mh,96,96,PixelFormat.Gray8,null);
+                InkMask=new ImageBrush(inkMask){Stretch=Stretch.Fill};
+            }
+            inkMask.WritePixels(new Int32Rect(0,0,mw,mh),mask,checked(mw*mh),mw);
+        }
         return 1;
     }
     static void Collect(DependencyObject node,FrameworkElement face,Rect clip,List<Zone> zones,Card card)
@@ -82,10 +91,11 @@ internal sealed class LiquidLens : IDisposable
     }
     public void Dispose(){
         PauseCapture();
-        Brush=null;image=null;zones=[];layoutDirty=true;
+        Brush=null;image=null;InkMask=null;inkMask=null;zones=[];layoutDirty=true;
     }
     [DllImport("GlassBackdrop.dll")] static extern IntPtr LiquidCreate(IntPtr card,int width,int height);
     [DllImport("GlassBackdrop.dll")] static extern int LiquidFrame(IntPtr lens,int x,int y,int width,int height,float dpi,int flags,
         [In] Zone[] zones,int count,out IntPtr pixels,out int imageWidth,out int imageHeight);
+    [DllImport("GlassBackdrop.dll")] static extern IntPtr LiquidInkMask(IntPtr lens,out int width,out int height);
     [DllImport("GlassBackdrop.dll")] static extern void LiquidDestroy(IntPtr lens);
 }

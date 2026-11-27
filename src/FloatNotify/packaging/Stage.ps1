@@ -17,7 +17,7 @@ foreach($rel in @('LICENSE','THIRD-PARTY-NOTICES.md')+@($manifest.Where({$_.Star
     $null=New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dest)
     Copy-Item -LiteralPath (Join-Path $repo $rel) -Destination $dest
 }
-$sourceFiles=@('FloatNotify.csproj','NuGet.Config','BuildGlass.cmd','GlassBackdrop.cpp','GlassCapture.h','LiquidLens.cpp','Register.ps1',
+$sourceFiles=@('FloatNotify.csproj','NuGet.Config','BuildGlass.cmd','GlassBackdrop.cpp','AdaptiveInk.cs','AdaptiveInk.hlsl','GlassCapture.h','LiquidLens.cpp','Register.ps1',
     'Card.xaml','Card.xaml.cs','OverflowWindow.xaml','OverflowWindow.xaml.cs','CardPlacement.cs','Checks.cs','CodexHookReport.cs','ConnectionVerification.cs',
     'DesktopChatRoutes.cs','DiagnosticReport.cs','DirectChoices.cs','Events.cs','ForegroundChat.cs','FormBridge.cs','GlassSurface.cs',
     'LiquidLens.cs','LocalData.cs','Monitor.cs','OfficialApproval.cs','Program.cs','Resident.cs','Resident.Deck.cs',

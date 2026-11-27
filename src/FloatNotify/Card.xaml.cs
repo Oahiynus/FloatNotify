@@ -26,6 +26,7 @@ internal partial class Card : Window, IDisposable
     readonly GlassSurface backdrop=new();
     readonly LiquidLens lens=new();
     readonly System.Windows.Threading.DispatcherTimer glassTimer=new(System.Windows.Threading.DispatcherPriority.Background);
+    AdaptiveInk? adaptiveInk;
     bool lensFailed;
     int idleFrames;
     bool covered;
@@ -195,13 +196,19 @@ internal partial class Card : Window, IDisposable
     void ReleaseGlass()
     {
         glassTimer.Stop();
+        if(adaptiveInk!=null){Hud.Effect=DialogFace.Effect=null;adaptiveInk=null;}
         lens.Dispose();backdrop.Dispose();LiveBackdrop=false;
         GlassShell.Background=null;
     }
-    bool UsesPixels => material is GlassMaterial.Liquid or GlassMaterial.Clear;
+    bool UsesPixels => material is GlassMaterial.Liquid or GlassMaterial.Clear or GlassMaterial.Adaptive;
     void RestoreShell()
     {
-        GlassShell.Background=(Brush)FindResource(material switch {GlassMaterial.Frosted=>"FrostedFace",GlassMaterial.Clear=>"ClearFace",_=>"LiquidFace"});
+        if(material==GlassMaterial.Adaptive){
+            adaptiveInk??=new AdaptiveInk();
+            adaptiveInk.SetMask(null);
+            (urgent?DialogFace:Hud).Effect=adaptiveInk;
+        }
+        GlassShell.Background=(Brush)FindResource(material switch {GlassMaterial.Adaptive=>"AdaptiveFace",GlassMaterial.Frosted=>"FrostedFace",GlassMaterial.Clear=>"ClearFace",_=>"LiquidFace"});
         GlassShell.BorderThickness=new Thickness(1.3);
         GlassShell.Child.Visibility=Visibility.Visible;
     }
@@ -210,8 +217,9 @@ internal partial class Card : Window, IDisposable
         if(closed || !IsVisible || !IsLoaded || GlassShell.ActualWidth<1 || GlassShell.ActualHeight<1 || workArea.IsEmpty || positioning)return;
         if(UsesPixels && !lensFailed){
             if(covered && lens.Brush!=null)return;
-            int changed=lens.Draw(this,!urgent,material==GlassMaterial.Clear);
+            int changed=lens.Draw(this,!urgent,material);
             if(changed>=0){
+                if(lens.InkMask is {} mask)adaptiveInk?.SetMask(mask);
                 if(lens.Brush!=null && GlassShell.Background!=lens.Brush){
                     GlassShell.BorderThickness=new Thickness(0);
                     GlassShell.Child.Visibility=Visibility.Collapsed;
@@ -229,7 +237,7 @@ internal partial class Card : Window, IDisposable
             Audit.Write($"glass-pixels-unavailable reason={changed} fallback=system");
         }
         LiveBackdrop=backdrop.Place(Handle,GlassShell,material,!urgent);
-        if(!LiveBackdrop)GlassShell.Background=Paint(material switch {GlassMaterial.Frosted=>"#EBF1F5F8",GlassMaterial.Clear=>"#CEDDEAF3",_=>"#DDF1F5F8"});
+        if(!LiveBackdrop)GlassShell.Background=Paint(material switch {GlassMaterial.Adaptive=>"#EF28313C",GlassMaterial.Frosted=>"#EBF1F5F8",GlassMaterial.Clear=>"#CEDDEAF3",_=>"#DDF1F5F8"});
     }
     public void ShowOfficialApproval(ApprovalDetails request)
     {
