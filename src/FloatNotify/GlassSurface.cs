@@ -6,25 +6,22 @@ using Point = System.Windows.Point;
 
 namespace FloatNotify;
 
-internal enum GlassMaterial { Liquid, LiquidSystem, Frosted, Adaptive, TonalLiquid, Lustre, TextRelief, SoftFocus }
+internal enum GlassMaterial { Liquid, LiquidSystem, Frosted }
 
 internal static class GlassPreference
 {
     static readonly string path=Path.Combine(Audit.Folder,"material.txt");
     public static GlassMaterial Read()
     {
-        try { return File.Exists(path) ? Parse(File.ReadAllText(path).Trim()) : GlassMaterial.Liquid; }
+        try { return File.Exists(path) ? File.ReadAllText(path).Trim() switch {
+            "frosted"=>GlassMaterial.Frosted,"liquid-system"=>GlassMaterial.LiquidSystem,_=>GlassMaterial.Liquid
+        } : GlassMaterial.Liquid; }
         catch(Exception e) when(e is IOException or UnauthorizedAccessException){return GlassMaterial.Liquid;}
     }
-    internal static GlassMaterial Parse(string value)=>value switch {
-        "soft-focus"=>GlassMaterial.SoftFocus,"text-relief"=>GlassMaterial.TextRelief,"lustre"=>GlassMaterial.Lustre,"tonal-liquid"=>GlassMaterial.TonalLiquid,"adaptive"=>GlassMaterial.Adaptive,
-        "frosted"=>GlassMaterial.Frosted,"liquid-system"=>GlassMaterial.LiquidSystem,
-        _=>GlassMaterial.Liquid // Includes the retired "clear" preference.
-    };
     public static void Write(GlassMaterial material)
     {
         Directory.CreateDirectory(Audit.Folder);
-        File.WriteAllText(path+".tmp",material switch {GlassMaterial.SoftFocus=>"soft-focus",GlassMaterial.TextRelief=>"text-relief",GlassMaterial.Lustre=>"lustre",GlassMaterial.Adaptive=>"adaptive",GlassMaterial.TonalLiquid=>"tonal-liquid",GlassMaterial.Frosted=>"frosted",GlassMaterial.LiquidSystem=>"liquid-system",_=>"liquid"});
+        File.WriteAllText(path+".tmp",material switch {GlassMaterial.Frosted=>"frosted",GlassMaterial.LiquidSystem=>"liquid-system",_=>"liquid"});
         File.Move(path+".tmp",path,true);
     }
 }

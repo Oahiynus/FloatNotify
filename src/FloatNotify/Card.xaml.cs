@@ -26,7 +26,6 @@ internal partial class Card : Window, IDisposable
     readonly GlassSurface backdrop=new();
     readonly LiquidLens lens=new();
     readonly System.Windows.Threading.DispatcherTimer glassTimer=new(System.Windows.Threading.DispatcherPriority.Background);
-    AdaptiveInk? adaptiveInk;
     bool lensFailed;
     int idleFrames;
     bool covered;
@@ -83,9 +82,6 @@ internal partial class Card : Window, IDisposable
 
             choices = new DirectChoices(this, notice, chat, canBind, questionScope);
             IsVisibleChanged += (_,_) => { if(IsVisible) choices.StartReading(); else choices.PauseReading(); };
-            RoutedEventHandler selectionChanged=(_,_)=>{if(this.material==GlassMaterial.SoftFocus)lens.InvalidateLayout();};
-            Options.AddHandler(System.Windows.Controls.Primitives.ToggleButton.CheckedEvent,selectionChanged);
-            Options.AddHandler(System.Windows.Controls.Primitives.ToggleButton.UncheckedEvent,selectionChanged);
             PreviewKeyDown += OnUrgentKeyDown;
         }
         else
@@ -199,34 +195,22 @@ internal partial class Card : Window, IDisposable
     void ReleaseGlass()
     {
         glassTimer.Stop();
-        if(adaptiveInk!=null){Hud.Effect=DialogFace.Effect=null;adaptiveInk=null;}
         lens.Dispose();backdrop.Dispose();LiveBackdrop=false;
         GlassShell.Background=null;
     }
-    bool UsesPixels => material is GlassMaterial.Liquid or GlassMaterial.TonalLiquid or GlassMaterial.Adaptive or GlassMaterial.Lustre or GlassMaterial.TextRelief or GlassMaterial.SoftFocus;
     void RestoreShell()
     {
-        if(material is GlassMaterial.Adaptive or GlassMaterial.TonalLiquid or GlassMaterial.Lustre or GlassMaterial.TextRelief or GlassMaterial.SoftFocus){
-            adaptiveInk??=new AdaptiveInk(preserveDayInk:material!=GlassMaterial.Adaptive,softSelection:material==GlassMaterial.SoftFocus);
-            adaptiveInk.SetMask(null);
-            (urgent?DialogFace:Hud).Effect=material==GlassMaterial.Adaptive?adaptiveInk:null;
-        }
-        GlassShell.Background=(Brush)FindResource(material switch {GlassMaterial.Adaptive=>"AdaptiveFace",GlassMaterial.Frosted=>"FrostedFace",_=>"LiquidFace"});
+        GlassShell.Background=(Brush)FindResource(material==GlassMaterial.Frosted?"FrostedFace":"LiquidFace");
         GlassShell.BorderThickness=new Thickness(1.3);
         GlassShell.Child.Visibility=Visibility.Visible;
     }
     void SyncGlass()
     {
         if(closed || !IsVisible || !IsLoaded || GlassShell.ActualWidth<1 || GlassShell.ActualHeight<1 || workArea.IsEmpty || positioning)return;
-        if(UsesPixels && !lensFailed){
+        if(material==GlassMaterial.Liquid && !lensFailed){
             if(covered && lens.Brush!=null)return;
-            int changed=lens.Draw(this,!urgent,material);
+            int changed=lens.Draw(this,!urgent);
             if(changed>=0){
-                if(changed>0 && adaptiveInk!=null){
-                    var mask=lens.InkMask;
-                    if(mask!=null)adaptiveInk.SetMask(mask);
-                    (urgent?DialogFace:Hud).Effect=mask!=null?adaptiveInk:null;
-                }
                 if(lens.Brush!=null && GlassShell.Background!=lens.Brush){
                     GlassShell.BorderThickness=new Thickness(0);
                     GlassShell.Child.Visibility=Visibility.Collapsed;
@@ -244,7 +228,7 @@ internal partial class Card : Window, IDisposable
             Audit.Write($"glass-pixels-unavailable reason={changed} fallback=system");
         }
         LiveBackdrop=backdrop.Place(Handle,GlassShell,material,!urgent);
-        if(!LiveBackdrop)GlassShell.Background=Paint(material switch {GlassMaterial.Adaptive=>"#EF28313C",GlassMaterial.Frosted=>"#EBF1F5F8",_=>"#DDF1F5F8"});
+        if(!LiveBackdrop)GlassShell.Background=Paint(material==GlassMaterial.Frosted?"#EBF1F5F8":"#DDF1F5F8");
     }
     public void ShowOfficialApproval(ApprovalDetails request)
     {
@@ -336,7 +320,7 @@ internal partial class Card : Window, IDisposable
     }
     public void RaisePassive(){
         Native.SetWindowPos(Handle,(IntPtr)(-1),0,0,0,0,0x13);
-        if(!UsesPixels || lensFailed)SyncGlass();
+        if(material!=GlassMaterial.Liquid || lensFailed)SyncGlass();
     }
     void OnUrgentKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {

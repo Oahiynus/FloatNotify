@@ -495,23 +495,6 @@ internal static class Checks
         using var question=new Card(new(Kind.Question,Guid.Empty,"preview",Source:"preview"),"预览",()=>{},()=>{},()=>false);
         using var done=new Card(new(Kind.Done,Guid.Empty,"preview",Source:"preview"),"预览",()=>{},()=>{},()=>false);
         bool Visible(System.Windows.UIElement c)=>c.Visibility==System.Windows.Visibility.Visible;
-        check(GlassPreference.Parse("clear")==GlassMaterial.Liquid && GlassPreference.Parse("adaptive")==GlassMaterial.Adaptive &&
-            GlassPreference.Parse("tonal-liquid")==GlassMaterial.TonalLiquid,"retired preference uses liquid and the two adaptive choices stay distinct");
-        done.ApplyMaterial(GlassMaterial.SoftFocus);
-        check(GlassPreference.Parse("soft-focus")==GlassMaterial.SoftFocus && done.Hud.Effect==null &&
-            DiagnosticReport.MaterialName("SoftFocus").Contains("柔映液态玻璃"),"soft focus keeps an independent preference and daylight ink");
-        done.ApplyMaterial(GlassMaterial.TextRelief);
-        check(GlassPreference.Parse("text-relief")==GlassMaterial.TextRelief && done.Hud.Effect==null &&
-            DiagnosticReport.MaterialName("TextRelief").Contains("轻映液态玻璃"),"text relief is independent and starts with original daylight ink");
-        done.ApplyMaterial(GlassMaterial.Lustre);
-        check(GlassPreference.Parse("lustre")==GlassMaterial.Lustre && done.Hud.Effect==null &&
-            DiagnosticReport.MaterialName("Lustre").Contains("澄光液态玻璃"),"lustre is an independent pixel material with original daylight ink");
-        done.ApplyMaterial(GlassMaterial.TonalLiquid);
-        check(done.Hud.Effect==null && DiagnosticReport.MaterialName("TonalLiquid").Contains("明暗液态玻璃"),"tonal liquid starts with original ink until it samples a dark backdrop");
-        done.ApplyMaterial(GlassMaterial.Adaptive);
-        check(done.Hud.Effect is AdaptiveInk && DiagnosticReport.MaterialName("Adaptive").Contains("自适应玻璃"),"adaptive HUD loads its shader before the first backdrop sample");
-        done.ApplyMaterial(GlassMaterial.Liquid);
-        check(done.Hud.Effect==null,"restoring original glass restores its original ink");
         foreach (var card in new[] { permission, question })
         {
             check(!card.ShowActivated && card.Headline.Focusable &&

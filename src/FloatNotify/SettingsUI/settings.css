@@ -172,7 +172,7 @@ button:focus-visible,select:focus-visible,summary:focus-visible,input:focus-visi
 .seg button:hover{color:#263449;background:#ffffff70}
 .seg button[aria-pressed=true]{background:linear-gradient(180deg,#fff 18%,#f8fbff 100%);color:var(--interactive);border-color:#fff;box-shadow:0 1px 3px #192f4b21,0 0 0 .5px #31486017;font-weight:650}
 .seg button:focus-visible{z-index:1;outline-offset:1px}
-.appearanceSettings .row{min-height:55px;flex-wrap:wrap}.appearanceSettings .seg:has([data-field="mat"]){display:inline-flex;flex-wrap:wrap;max-width:100%;border-radius:16px}.appearanceSettings .seg{min-width:226px}
+.appearanceSettings .row{min-height:55px}.appearanceSettings .seg{min-width:226px}
 .previewPanel{margin-top:20px;border:1px solid var(--hairline);border-radius:16px;background:#fff;overflow:visible}
 .previewPanel .previewHead{margin:0;min-height:58px;padding:10px 15px;gap:10px;flex-wrap:wrap}
 .previewHead h2{font-size:14px;color:var(--ink);font-weight:650}
